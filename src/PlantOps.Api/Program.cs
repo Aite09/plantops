@@ -63,10 +63,12 @@ builder.Services.AddOpenApi(options =>
 
 var app = builder.Build();
 
+// Outermost, so the request log records the final status code (e.g. 409) after the exception handler has run,
+// instead of seeing the raw exception and logging every handled error as a 500 with a stack trace.
+app.UseSerilogRequestLogging();
 app.UseExceptionHandler();
 // Turns empty 401/403/404 responses into ProblemDetails bodies too.
 app.UseStatusCodePages();
-app.UseSerilogRequestLogging();
 
 if (app.Environment.IsDevelopment())
 {

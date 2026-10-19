@@ -17,8 +17,8 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
 {
     /// <summary>Lists work orders, highest priority and oldest first.</summary>
     [HttpGet]
-    [ProducesResponseType<PagedResult<WorkOrderSummaryDto>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<PagedResult<WorkOrderSummaryDto>>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     public async Task<ActionResult<PagedResult<WorkOrderSummaryDto>>> List(
         [FromQuery] WorkOrderStatus? status,
         [FromQuery] Guid? plantUnitId,
@@ -33,8 +33,8 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
 
     /// <summary>Gets one work order with its unit, equipment and lifecycle timestamps.</summary>
     [HttpGet("{id:guid}")]
-    [ProducesResponseType<WorkOrderDetailsDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<WorkOrderDetailsDto>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public async Task<ActionResult<WorkOrderDetailsDto>> GetById(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetWorkOrderByIdQuery(id), cancellationToken);
@@ -43,9 +43,9 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
 
     /// <summary>Reports a new equipment fault. The work order starts in the Open status.</summary>
     [HttpPost]
-    [ProducesResponseType<CreatedResponse>(StatusCodes.Status201Created)]
-    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<CreatedResponse>(StatusCodes.Status201Created, "application/json")]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public async Task<ActionResult<CreatedResponse>> Create(CreateWorkOrderRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateWorkOrderCommand(request.Title, request.Description, request.Priority, request.EquipmentId);
@@ -61,9 +61,9 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
     /// </summary>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     public async Task<ActionResult> Update(Guid id, UpdateWorkOrderRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new UpdateWorkOrderCommand(id, request.Title, request.Description, request.Priority, request.Version), cancellationToken);
@@ -73,8 +73,8 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
     /// <summary>Supervisor approves an open work order.</summary>
     [HttpPost("{id:guid}/approve")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     public async Task<ActionResult> Approve(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new ApproveWorkOrderCommand(id), cancellationToken);
@@ -84,9 +84,9 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
     /// <summary>Supervisor assigns or reassigns the work order to a technician.</summary>
     [HttpPost("{id:guid}/assign")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     public async Task<ActionResult> Assign(Guid id, AssignWorkOrderRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new AssignWorkOrderCommand(id, request.TechnicianId), cancellationToken);
@@ -96,9 +96,9 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
     /// <summary>The assigned technician starts work.</summary>
     [HttpPost("{id:guid}/start")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     public async Task<ActionResult> Start(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new StartWorkOrderCommand(id), cancellationToken);
@@ -108,10 +108,10 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
     /// <summary>The assigned technician closes the work order with resolution notes.</summary>
     [HttpPost("{id:guid}/close")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     public async Task<ActionResult> Close(Guid id, CloseWorkOrderRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new CloseWorkOrderCommand(id, request.ResolutionNotes), cancellationToken);

@@ -5,28 +5,13 @@ using PlantOps.Domain.Common;
 
 namespace PlantOps.Api.Controllers;
 
+// No class-level [Produces]: it is a result filter that would overwrite application/problem+json on error responses.
 [ApiController]
-[Produces("application/json")]
 public abstract class ApiControllerBase : ControllerBase
 {
     /// <summary>Turns a failed Result into an RFC 7807 problem response with the matching HTTP status code.</summary>
     protected ActionResult Problem(Error error)
     {
-        if (error is ValidationError validation)
-        {
-            var modelState = new ModelStateDictionary();
-            foreach (var (field, messages) in validation.Errors)
-            {
-                foreach (var message in messages)
-                {
-                    // camelCase so field names match the JSON the client sent.
-                    modelState.AddModelError(JsonNamingPolicy.CamelCase.ConvertName(field), message);
-                }
-            }
-
-            return ValidationProblem(modelState);
-        }
-
         var statusCode = error.Type switch
         {
             ErrorType.Validation => StatusCodes.Status400BadRequest,
@@ -36,7 +21,10 @@ public abstract class ApiControllerBase : ControllerBase
             _ => StatusCodes.Status500InternalServerError,
         };
 
-        var problem = ProblemDetailsFactory.CreateProblemDetails(HttpContext, statusCode, detail: error.Description);
+        var problem = error is ValidationError validation
+            ? ProblemDetailsFactory.CreateValidationProblemDetails(HttpContext, ToModelState(validation), statusCode)
+            : ProblemDetailsFactory.CreateProblemDetails(HttpContext, statusCode, detail: error.Description);
+
         // A stable, machine-readable code the Angular client can switch on, e.g. "WorkOrder.InvalidTransition".
         problem.Extensions["code"] = error.Code;
 
@@ -45,5 +33,20 @@ public abstract class ApiControllerBase : ControllerBase
             StatusCode = statusCode,
             ContentTypes = { "application/problem+json" },
         };
+    }
+
+    private static ModelStateDictionary ToModelState(ValidationError validation)
+    {
+        var modelState = new ModelStateDictionary();
+        foreach (var (field, messages) in validation.Errors)
+        {
+            foreach (var message in messages)
+            {
+                // camelCase so field names match the JSON the client sent.
+                modelState.AddModelError(JsonNamingPolicy.CamelCase.ConvertName(field), message);
+            }
+        }
+
+        return modelState;
     }
 }

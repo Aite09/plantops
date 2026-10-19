@@ -9,7 +9,7 @@ public sealed class PlantUnitsController(ISender sender) : ApiControllerBase
 {
     /// <summary>Lists plant units with their equipment, for pick lists.</summary>
     [HttpGet]
-    [ProducesResponseType<IReadOnlyList<PlantUnitDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<IReadOnlyList<PlantUnitDto>>(StatusCodes.Status200OK, "application/json")]
     public async Task<ActionResult<IReadOnlyList<PlantUnitDto>>> List(CancellationToken cancellationToken)
     {
         var result = await sender.Send(new ListPlantUnitsQuery(), cancellationToken);
