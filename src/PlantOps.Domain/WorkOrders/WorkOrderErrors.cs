@@ -4,6 +4,9 @@ namespace PlantOps.Domain.WorkOrders;
 
 public static class WorkOrderErrors
 {
+    public static Error NotFound(Guid id) => Error.NotFound(
+        "WorkOrder.NotFound", $"Work order '{id}' was not found.");
+
     public static readonly Error TitleRequired = Error.Validation(
         "WorkOrder.TitleRequired", $"Title is required and must be at most {WorkOrder.TitleMaxLength} characters.");
 

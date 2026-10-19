@@ -19,9 +19,9 @@ assign work orders to technicians, technicians work and close them, and every ch
 PlantOps/
 ├── src/
 │   ├── PlantOps.Domain/          Entities, WorkOrder aggregate, Result/Error. No dependencies.
-│   ├── PlantOps.Application/     Use cases (CQRS handlers arrive in Phase 2). Depends on Domain.
-│   ├── PlantOps.Infrastructure/  EF Core DbContext, mappings, migrations, seed data. Depends on Application.
-│   └── PlantOps.Api/             ASP.NET Core host and composition root.
+│   ├── PlantOps.Application/     CQRS commands/queries, MediatR behaviors, validators. Depends on Domain.
+│   ├── PlantOps.Infrastructure/  EF Core DbContext, repositories, read queries, migrations, seed data.
+│   └── PlantOps.Api/             Controllers, ProblemDetails error handling, OpenAPI, composition root.
 ├── Directory.Build.props         Shared compiler settings for every project
 ├── Directory.Packages.props      Central NuGet versions
 ├── docker-compose.yml            Local SQL Server
@@ -68,7 +68,20 @@ and the EF Core CLI (`dotnet tool install --global dotnet-ef`).
    dotnet run --project src/PlantOps.Api --launch-profile http
    ```
 
-   The OpenAPI document is at http://localhost:5297/openapi/v1.json.
+   Swagger UI is at http://localhost:5297/swagger (the raw OpenAPI document is at `/openapi/v1.json`).
+
+### Trying the API in Swagger UI
+
+Until Phase 3 adds real login, Development uses a temporary demo-user header. Click **Authorize** in Swagger UI
+and enter one of `staff`, `supervisor`, `tech-a` or `tech-b`, then try a full lifecycle:
+
+1. As `staff`: `GET /api/plant-units` to pick an equipment id, then `POST /api/work-orders`.
+2. As `supervisor`: `POST /api/work-orders/{id}/approve`, then `/assign` with tech-a's id
+   `3c9b7d52-0e41-4f8a-b6d3-0000000000c1`.
+3. As `tech-a`: `POST /api/work-orders/{id}/start`, then `/close` with resolution notes.
+
+Out-of-order steps return `409 Conflict`, the wrong technician gets `403 Forbidden`, and invalid input gets
+`400` with per-field errors, all as RFC 7807 problem details.
 
 `TrustServerCertificate=True` is only for the local container's self-signed certificate. Azure SQL uses a
 trusted certificate, so deployed environments do not set it.
@@ -78,3 +91,19 @@ trusted certificate, so deployed environments do not set it.
 ```bash
 dotnet ef migrations add <Name> --project src/PlantOps.Infrastructure --startup-project src/PlantOps.Api --output-dir Persistence/Migrations
 ```
+
+## API
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/work-orders?status=&plantUnitId=&priority=&page=&pageSize=` | Paged list, highest priority and oldest first |
+| GET | `/api/work-orders/{id}` | Work order details |
+| POST | `/api/work-orders` | Report a fault (starts as Open) |
+| PUT | `/api/work-orders/{id}` | Edit title, description, priority (not when Closed). Send back `version` from the GET; a stale version returns `409` |
+| POST | `/api/work-orders/{id}/approve` | Open → Approved |
+| POST | `/api/work-orders/{id}/assign` | Approved/Assigned/InProgress → Assigned (assign or hand over) |
+| POST | `/api/work-orders/{id}/start` | Assigned → InProgress (assigned technician only) |
+| POST | `/api/work-orders/{id}/close` | InProgress → Closed (assigned technician only) |
+| GET | `/api/plant-units` | Plant units with their equipment |
+
+Work orders are never deleted: they are maintenance history, and Closed is the end of the lifecycle.
