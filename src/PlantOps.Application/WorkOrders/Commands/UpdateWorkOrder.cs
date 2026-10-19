@@ -1,4 +1,5 @@
 using FluentValidation;
+using PlantOps.Application.Abstractions.Authentication;
 using PlantOps.Application.Abstractions.Messaging;
 using PlantOps.Application.Abstractions.Persistence;
 using PlantOps.Domain.Common;
@@ -35,7 +36,8 @@ internal sealed class UpdateWorkOrderCommandValidator : AbstractValidator<Update
 
 internal sealed class UpdateWorkOrderCommandHandler(
     IWorkOrderRepository workOrderRepository,
-    IUnitOfWork unitOfWork) : ICommandHandler<UpdateWorkOrderCommand>
+    IUnitOfWork unitOfWork,
+    ICurrentUser currentUser) : ICommandHandler<UpdateWorkOrderCommand>
 {
     public async Task<Result> Handle(UpdateWorkOrderCommand command, CancellationToken cancellationToken)
     {
@@ -43,6 +45,11 @@ internal sealed class UpdateWorkOrderCommandHandler(
         if (workOrder is null)
         {
             return WorkOrderErrors.NotFound(command.WorkOrderId);
+        }
+
+        if (!CanEdit(workOrder))
+        {
+            return WorkOrderErrors.EditNotAllowed;
         }
 
         workOrderRepository.SetExpectedVersion(workOrder, command.Version);
@@ -56,4 +63,11 @@ internal sealed class UpdateWorkOrderCommandHandler(
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Success();
     }
+
+    // Resource-based authorization: a role alone can't answer this, because it depends on this work order's
+    // reporter and status. Supervisors and admins can edit any open work; reporters only their own, until approved.
+    private bool CanEdit(WorkOrder workOrder) =>
+        currentUser.IsInRole(Roles.Supervisor)
+        || currentUser.IsInRole(Roles.Admin)
+        || (workOrder.ReportedByUserId == currentUser.UserId && workOrder.Status == WorkOrderStatus.Open);
 }

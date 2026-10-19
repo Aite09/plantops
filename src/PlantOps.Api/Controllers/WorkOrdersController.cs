@@ -1,5 +1,7 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PlantOps.Api.Authorization;
 using PlantOps.Api.Contracts;
 using PlantOps.Application.Common;
 using PlantOps.Application.WorkOrders.Commands;
@@ -41,8 +43,19 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
         return result.IsSuccess ? Ok(result.Value) : Problem(result.Error);
     }
 
+    /// <summary>Audit trail: every change to the work order, who made it and when, oldest first.</summary>
+    [HttpGet("{id:guid}/history")]
+    [ProducesResponseType<IReadOnlyList<AuditEntryDto>>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public async Task<ActionResult<IReadOnlyList<AuditEntryDto>>> GetHistory(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetWorkOrderHistoryQuery(id), cancellationToken);
+        return result.IsSuccess ? Ok(result.Value) : Problem(result.Error);
+    }
+
     /// <summary>Reports a new equipment fault. The work order starts in the Open status.</summary>
     [HttpPost]
+    [Authorize(Policy = Policies.ReportFaults)]
     [ProducesResponseType<CreatedResponse>(StatusCodes.Status201Created, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
@@ -56,10 +69,13 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
     }
 
     /// <summary>
-    /// Edits title, description and priority. Not allowed once the work order is closed. Send the <c>version</c>
-    /// from the details response; if someone else changed the work order since, the result is 409 Conflict.
+    /// Edits title, description and priority. Supervisors and admins can edit until it is closed; the reporter can
+    /// edit their own report while it is Open. Send the <c>version</c> from the details response; if someone else
+    /// changed the work order since, the result is 409 Conflict.
     /// </summary>
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = Policies.ReportFaults)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
@@ -72,6 +88,8 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
 
     /// <summary>Supervisor approves an open work order.</summary>
     [HttpPost("{id:guid}/approve")]
+    [Authorize(Policy = Policies.ManageWorkOrders)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
@@ -83,6 +101,8 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
 
     /// <summary>Supervisor assigns or reassigns the work order to a technician.</summary>
     [HttpPost("{id:guid}/assign")]
+    [Authorize(Policy = Policies.ManageWorkOrders)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
@@ -95,6 +115,7 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
 
     /// <summary>The assigned technician starts work.</summary>
     [HttpPost("{id:guid}/start")]
+    [Authorize(Policy = Policies.PerformWork)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
@@ -107,6 +128,7 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
 
     /// <summary>The assigned technician closes the work order with resolution notes.</summary>
     [HttpPost("{id:guid}/close")]
+    [Authorize(Policy = Policies.PerformWork)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]

@@ -25,6 +25,9 @@ public static class WorkOrderErrors
     public static readonly Error ClosedCannotBeEdited = Error.Conflict(
         "WorkOrder.ClosedCannotBeEdited", "A closed work order cannot be edited.");
 
+    public static readonly Error EditNotAllowed = Error.Forbidden(
+        "WorkOrder.EditNotAllowed", "Only supervisors can edit this work order. Reporters can edit their own report while it is Open.");
+
     public static readonly Error NotAssignedTechnician = Error.Forbidden(
         "WorkOrder.NotAssignedTechnician", "Only the technician assigned to this work order can do that.");
 

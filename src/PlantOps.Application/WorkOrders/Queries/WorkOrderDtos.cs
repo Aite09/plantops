@@ -1,3 +1,4 @@
+using System.Text.Json;
 using PlantOps.Domain.WorkOrders;
 
 namespace PlantOps.Application.WorkOrders.Queries;
@@ -11,6 +12,7 @@ public sealed record WorkOrderSummaryDto(
     string PlantUnitCode,
     string EquipmentTag,
     Guid? AssignedToUserId,
+    string? AssignedToName,
     DateTimeOffset CreatedAtUtc);
 
 /// <summary>
@@ -30,8 +32,11 @@ public sealed record WorkOrderDetailsDto(
     string EquipmentTag,
     string EquipmentName,
     Guid ReportedByUserId,
+    string? ReportedByName,
     Guid? ApprovedByUserId,
+    string? ApprovedByName,
     Guid? AssignedToUserId,
+    string? AssignedToName,
     string? ResolutionNotes,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? ApprovedAtUtc,
@@ -39,3 +44,14 @@ public sealed record WorkOrderDetailsDto(
     DateTimeOffset? StartedAtUtc,
     DateTimeOffset? ClosedAtUtc,
     byte[] Version);
+
+/// <summary>One recorded change: who did it, when, and the old and new value of each field that changed.</summary>
+public sealed record AuditEntryDto(
+    DateTimeOffset TimestampUtc,
+    string Action,
+    Guid? UserId,
+    string? UserName,
+    IReadOnlyList<AuditChangeDto> Changes);
+
+/// <summary>Values stay as raw JSON (string, number or null) so each keeps its original type.</summary>
+public sealed record AuditChangeDto(string Property, JsonElement? OldValue, JsonElement? NewValue);

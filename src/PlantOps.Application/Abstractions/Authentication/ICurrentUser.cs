@@ -6,6 +6,10 @@ namespace PlantOps.Application.Abstractions.Authentication;
 /// </summary>
 public interface ICurrentUser
 {
+    bool IsAuthenticated { get; }
+
     /// <summary>Id of the authenticated user. Throws if called on an anonymous request.</summary>
     Guid UserId { get; }
+
+    bool IsInRole(string role);
 }

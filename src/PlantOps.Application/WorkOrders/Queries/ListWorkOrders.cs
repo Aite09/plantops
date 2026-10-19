@@ -1,4 +1,5 @@
 using FluentValidation;
+using PlantOps.Application.Abstractions.Authentication;
 using PlantOps.Application.Abstractions.Messaging;
 using PlantOps.Application.Abstractions.Persistence;
 using PlantOps.Application.Common;
@@ -33,9 +34,25 @@ internal sealed class ListWorkOrdersQueryValidator : AbstractValidator<ListWorkO
     }
 }
 
-internal sealed class ListWorkOrdersQueryHandler(IWorkOrderQueries queries)
+internal sealed class ListWorkOrdersQueryHandler(IWorkOrderQueries queries, IUserDirectory userDirectory)
     : IQueryHandler<ListWorkOrdersQuery, PagedResult<WorkOrderSummaryDto>>
 {
-    public async Task<Result<PagedResult<WorkOrderSummaryDto>>> Handle(ListWorkOrdersQuery query, CancellationToken cancellationToken) =>
-        await queries.ListAsync(query, cancellationToken);
+    public async Task<Result<PagedResult<WorkOrderSummaryDto>>> Handle(ListWorkOrdersQuery query, CancellationToken cancellationToken)
+    {
+        var page = await queries.ListAsync(query, cancellationToken);
+
+        // One lookup for the whole page, not one per row.
+        var assigneeIds = page.Items.Select(i => i.AssignedToUserId).OfType<Guid>().Distinct().ToArray();
+        if (assigneeIds.Length == 0)
+        {
+            return page;
+        }
+
+        var names = await userDirectory.GetDisplayNamesAsync(assigneeIds, cancellationToken);
+        var items = page.Items
+            .Select(i => i.AssignedToUserId is { } id ? i with { AssignedToName = names.GetValueOrDefault(id) } : i)
+            .ToList();
+
+        return page with { Items = items };
+    }
 }

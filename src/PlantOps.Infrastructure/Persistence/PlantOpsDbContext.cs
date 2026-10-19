@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PlantOps.Application.Abstractions.Persistence;
 using PlantOps.Domain.Plant;
+using PlantOps.Infrastructure.Persistence.Auditing;
 using PlantOps.Domain.WorkOrders;
 
 namespace PlantOps.Infrastructure.Persistence;
@@ -16,6 +17,8 @@ public sealed class PlantOpsDbContext(DbContextOptions<PlantOpsDbContext> option
     public DbSet<PlantUnit> PlantUnits => Set<PlantUnit>();
 
     public DbSet<Equipment> Equipment => Set<Equipment>();
+
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         // Picks up every IEntityTypeConfiguration<T> in this assembly, so mappings live next to each other, not in one giant method.

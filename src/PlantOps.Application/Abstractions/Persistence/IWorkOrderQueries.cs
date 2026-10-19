@@ -8,6 +8,8 @@ namespace PlantOps.Application.Abstractions.Persistence;
 /// </summary>
 public interface IWorkOrderQueries
 {
+    Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken);
+
     Task<WorkOrderDetailsDto?> GetDetailsAsync(Guid id, CancellationToken cancellationToken);
 
     Task<PagedResult<WorkOrderSummaryDto>> ListAsync(ListWorkOrdersQuery query, CancellationToken cancellationToken);

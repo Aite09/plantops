@@ -10,4 +10,5 @@ public static class SeedUsers
     public static readonly Guid Supervisor = new("3c9b7d52-0e41-4f8a-b6d3-0000000000b1");
     public static readonly Guid TechnicianA = new("3c9b7d52-0e41-4f8a-b6d3-0000000000c1");
     public static readonly Guid TechnicianB = new("3c9b7d52-0e41-4f8a-b6d3-0000000000c2");
+    public static readonly Guid Admin = new("3c9b7d52-0e41-4f8a-b6d3-0000000000d1");
 }

@@ -1,6 +1,8 @@
 using FluentValidation;
+using PlantOps.Application.Abstractions.Authentication;
 using PlantOps.Application.Abstractions.Messaging;
 using PlantOps.Application.Abstractions.Persistence;
+using PlantOps.Application.Users;
 using PlantOps.Domain.Common;
 using PlantOps.Domain.WorkOrders;
 
@@ -21,6 +23,7 @@ internal sealed class AssignWorkOrderCommandValidator : AbstractValidator<Assign
 internal sealed class AssignWorkOrderCommandHandler(
     IWorkOrderRepository workOrderRepository,
     IUnitOfWork unitOfWork,
+    IUserDirectory userDirectory,
     TimeProvider timeProvider) : ICommandHandler<AssignWorkOrderCommand>
 {
     public async Task<Result> Handle(AssignWorkOrderCommand command, CancellationToken cancellationToken)
@@ -31,7 +34,11 @@ internal sealed class AssignWorkOrderCommandHandler(
             return WorkOrderErrors.NotFound(command.WorkOrderId);
         }
 
-        // Phase 3 adds a check that TechnicianId belongs to a user in the Technician role.
+        if (!await userDirectory.IsInRoleAsync(command.TechnicianId, Roles.Technician, cancellationToken))
+        {
+            return UserErrors.NotATechnician(command.TechnicianId);
+        }
+
         var result = workOrder.Assign(command.TechnicianId, timeProvider.GetUtcNow());
         if (result.IsFailure)
         {

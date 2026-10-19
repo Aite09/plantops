@@ -11,6 +11,11 @@ namespace PlantOps.Infrastructure.Persistence.Queries;
 /// </summary>
 internal sealed class WorkOrderQueries(PlantOpsDbContext db) : IWorkOrderQueries
 {
+    public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+        db.WorkOrders.AnyAsync(w => w.Id == id, cancellationToken);
+
+    // User names are null here and filled in by the query handlers from IUserDirectory, because users live in a
+    // separate identity store that this query cannot join to.
     public Task<WorkOrderDetailsDto?> GetDetailsAsync(Guid id, CancellationToken cancellationToken) =>
         (from w in db.WorkOrders.AsNoTracking()
          join u in db.PlantUnits on w.PlantUnitId equals u.Id
@@ -29,8 +34,11 @@ internal sealed class WorkOrderQueries(PlantOpsDbContext db) : IWorkOrderQueries
              e.Tag,
              e.Name,
              w.ReportedByUserId,
+             null,
              w.ApprovedByUserId,
+             null,
              w.AssignedToUserId,
+             null,
              w.ResolutionNotes,
              w.CreatedAtUtc,
              w.ApprovedAtUtc,
@@ -75,6 +83,7 @@ internal sealed class WorkOrderQueries(PlantOpsDbContext db) : IWorkOrderQueries
                     u.Code,
                     e.Tag,
                     w.AssignedToUserId,
+                    null,
                     w.CreatedAtUtc))
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
