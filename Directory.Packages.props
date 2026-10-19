@@ -1,0 +1,17 @@
+<Project>
+  <!-- Central Package Management: every NuGet version lives here, projects reference packages without versions. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- Lets a version below also override the same package when it arrives transitively. -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.13" />
+  </ItemGroup>
+  <ItemGroup Label="Transitive security pins">
+    <!-- Microsoft.Data.SqlClient 6.1.7 pulls 9.0.11, affected by CVE-2026-84008 and CVE-2026-70162. Remove once SqlClient ships a fixed dependency. -->
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+  </ItemGroup>
+</Project>

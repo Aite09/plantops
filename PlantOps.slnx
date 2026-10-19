@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PlantOps.Api/PlantOps.Api.csproj" />
+    <Project Path="src/PlantOps.Application/PlantOps.Application.csproj" />
+    <Project Path="src/PlantOps.Domain/PlantOps.Domain.csproj" />
+    <Project Path="src/PlantOps.Infrastructure/PlantOps.Infrastructure.csproj" />
+  </Folder>
+</Solution>
