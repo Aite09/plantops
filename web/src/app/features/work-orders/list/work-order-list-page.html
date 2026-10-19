@@ -1,0 +1,71 @@
+@let state = result();
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>Work orders</h1>
+      <p class="muted summary" aria-live="polite">
+        @if (state.status === 'loaded') {
+          {{ state.data.totalCount }} {{ state.data.totalCount === 1 ? 'work order' : 'work orders' }}
+          · highest priority and oldest first
+        } @else if (state.status === 'loading') {
+          Loading…
+        }
+      </p>
+    </div>
+  </header>
+
+  <po-work-order-filters
+    [filter]="filter()"
+    [plantUnits]="plantUnits()"
+    [showMine]="isTechnician()"
+    [hasFilters]="hasFilters()"
+    (changed)="changeFilter($event)"
+    (cleared)="clearFilters()"
+  />
+
+  @if (state.status === 'loading') {
+    <div class="skeleton-table" aria-hidden="true">
+      @for (row of [1, 2, 3, 4, 5, 6]; track row) {
+        <span class="skeleton"></span>
+      }
+    </div>
+  } @else if (state.status === 'error') {
+    <div class="state" role="alert">
+      <mat-icon aria-hidden="true">cloud_off</mat-icon>
+      <p>{{ errorMessage() }}</p>
+      <button mat-stroked-button type="button" (click)="retry()">Try again</button>
+    </div>
+  } @else if (state.data.items.length === 0 && state.data.totalCount > 0) {
+    <div class="state">
+      <mat-icon aria-hidden="true">last_page</mat-icon>
+      <p>There are no work orders on this page.</p>
+      <button mat-stroked-button type="button" (click)="firstPage()">Go to the first page</button>
+    </div>
+  } @else if (state.data.items.length === 0) {
+    <div class="state">
+      <mat-icon aria-hidden="true">inbox</mat-icon>
+      @if (hasFilters()) {
+        <p>No work orders match these filters.</p>
+        <button mat-stroked-button type="button" (click)="clearFilters()">Show all active work</button>
+      } @else {
+        <p>No active work. When something on the plant needs attention, report it here.</p>
+        <a mat-flat-button routerLink="/work-orders/new">Report a fault</a>
+      }
+    </div>
+  } @else {
+    <div class="results" [attr.aria-busy]="refreshing()">
+      @if (refreshing()) {
+        <mat-progress-bar mode="indeterminate" aria-label="Loading work orders" />
+      }
+      <po-work-order-table [items]="state.data.items" [now]="now()" />
+    </div>
+    <mat-paginator
+      [length]="state.data.totalCount"
+      [pageIndex]="state.data.page - 1"
+      [pageSize]="state.data.pageSize"
+      [pageSizeOptions]="pageSizeOptions"
+      (page)="changePage($event)"
+      aria-label="Choose page of work orders"
+    />
+  }
+</div>

@@ -1,0 +1,47 @@
+@let state = users();
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>Users</h1>
+      <p class="muted lead">Accounts are created by an admin; there is no self sign-up.</p>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section aria-labelledby="list-title">
+      <h2 id="list-title" class="visually-hidden">All users</h2>
+      @if (state.status === 'loading') {
+        <span class="skeleton" style="height: 240px" aria-hidden="true"></span>
+      } @else if (state.status === 'error') {
+        <div class="load-error" role="alert">
+          <p>{{ errorMessage() }}</p>
+          <button mat-stroked-button type="button" (click)="retry()">Try again</button>
+        </div>
+      } @else {
+        <div class="table-wrap">
+          <table mat-table [dataSource]="state.data">
+            <ng-container matColumnDef="name">
+              <th mat-header-cell *matHeaderCellDef>Name</th>
+              <td mat-cell *matCellDef="let user">{{ user.displayName }}</td>
+            </ng-container>
+            <ng-container matColumnDef="email">
+              <th mat-header-cell *matHeaderCellDef>Email</th>
+              <td mat-cell *matCellDef="let user" class="mono email">{{ user.email }}</td>
+            </ng-container>
+            <ng-container matColumnDef="roles">
+              <th mat-header-cell *matHeaderCellDef>Role</th>
+              <td mat-cell *matCellDef="let user">{{ user.roles.join(', ') || 'No role' }}</td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="columns"></tr>
+            <tr mat-row *matRowDef="let row; columns: columns"></tr>
+          </table>
+        </div>
+      }
+    </section>
+
+    <section class="create" aria-labelledby="create-title">
+      <h2 id="create-title">New account</h2>
+      <po-create-user-form [submitting]="submitting()" [problem]="problem()" [resetSignal]="created()" (save)="create($event)" />
+    </section>
+  </div>
+</div>

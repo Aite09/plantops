@@ -6,8 +6,12 @@ using PlantOps.Domain.Common;
 
 namespace PlantOps.Application.Auth;
 
-/// <summary>A signed JWT access token plus who it was issued to, so the client can show the right menus.</summary>
-public sealed record AccessTokenDto(string AccessToken, DateTimeOffset ExpiresAtUtc, UserDto User);
+/// <summary>
+/// A signed JWT access token plus who it was issued to, so the client can show the right menus.
+/// <see cref="ExpiresInSeconds"/> (like OAuth's expires_in) lets a client time the session from its own clock;
+/// comparing the absolute <see cref="ExpiresAtUtc"/> with a PC clock that runs fast would end the session early.
+/// </summary>
+public sealed record AccessTokenDto(string AccessToken, DateTimeOffset ExpiresAtUtc, int ExpiresInSeconds, UserDto User);
 
 public sealed record LoginCommand(string Email, string Password) : ICommand<AccessTokenDto>;
 

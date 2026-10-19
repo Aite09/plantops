@@ -13,6 +13,8 @@ public sealed record ListWorkOrdersQuery(
     WorkOrderStatus? Status = null,
     Guid? PlantUnitId = null,
     WorkOrderPriority? Priority = null,
+    Guid? AssignedToUserId = null,
+    bool ActiveOnly = false,
     int Page = 1,
     int PageSize = ListWorkOrdersQuery.DefaultPageSize) : IQuery<PagedResult<WorkOrderSummaryDto>>
 {

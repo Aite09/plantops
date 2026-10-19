@@ -1,0 +1,156 @@
+// Theme: Angular Material 3, seeded from one steel-blue primary (#305e8b). Neutrals are generated from it, so
+// greys carry a slight tint of the brand hue. Colour strategy is "restrained": blue only for actions, links and
+// selection; red and amber only for things that need attention (Critical/High priority, ageing work, errors).
+@use '@angular/material' as mat;
+@use './theme-colors' as palettes;
+
+html {
+  height: 100%;
+  color-scheme: light;
+
+  @include mat.theme(
+    (
+      color: (
+        primary: palettes.$primary-palette,
+        tertiary: palettes.$tertiary-palette,
+        theme-type: light,
+      ),
+      typography: (
+        plain-family: 'IBM Plex Sans',
+        brand-family: 'IBM Plex Sans',
+        bold-weight: 600,
+        medium-weight: 500,
+        regular-weight: 400,
+      ),
+      // One step denser than the default: this is a work queue, people scan many rows.
+      density: -1,
+    )
+  );
+}
+
+// Semantic tokens on top of Material's system variables. Values are OKLCH; every text colour was checked to
+// reach at least 4.5:1 contrast on white and on its own tinted surface (WCAG 2.2 AA).
+:root {
+  --po-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --po-ink: oklch(0.25 0.015 250);
+  --po-ink-muted: oklch(0.5 0.015 250);
+  --po-line: oklch(0.9 0.008 250);
+  --po-panel: oklch(0.975 0.004 250);
+
+  --po-critical-ink: oklch(0.5 0.19 27);
+  --po-critical-surface: oklch(0.955 0.025 27);
+  --po-high-ink: oklch(0.5 0.11 62);
+  --po-high-surface: oklch(0.96 0.045 85);
+  --po-ok-ink: oklch(0.45 0.09 155);
+
+  --po-radius: 6px;
+  --po-gap: 16px;
+  --po-page-max: 1280px;
+
+  --po-ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+  --po-duration: 180ms;
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  background-color: var(--mat-sys-surface);
+  color: var(--po-ink);
+  font: var(--mat-sys-body-medium);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+  margin: 0;
+}
+
+h1 {
+  font: var(--mat-sys-headline-small);
+  font-weight: 600;
+}
+
+h2 {
+  font: var(--mat-sys-title-medium);
+  font-weight: 600;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+a {
+  color: var(--mat-sys-primary);
+}
+
+// Visible keyboard focus everywhere, never removed.
+:focus-visible {
+  outline: 2px solid var(--mat-sys-primary);
+  outline-offset: 2px;
+}
+
+.mono {
+  font-family: var(--po-mono);
+  font-feature-settings: 'zero' 1;
+}
+
+.muted {
+  color: var(--po-ink-muted);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+// Page frame shared by every screen inside the shell.
+.page {
+  box-sizing: border-box;
+  max-width: var(--po-page-max);
+  margin: 0 auto;
+  padding: 24px clamp(16px, 3vw, 32px) 48px;
+}
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-bottom: 20px;
+}
+
+// Loading placeholders: shapes of the content to come, instead of a spinner in the middle of the page.
+.skeleton {
+  display: block;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--po-panel) 25%, oklch(0.94 0.006 250) 50%, var(--po-panel) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,91 @@
+<form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+  <fieldset class="where">
+    <legend>Where is the fault?</legend>
+
+    <mat-form-field>
+      <mat-label>Plant unit</mat-label>
+      <mat-select formControlName="plantUnitId">
+        @for (unit of plantUnits(); track unit.id) {
+          <mat-option [value]="unit.id"><span class="mono">{{ unit.code }}</span> {{ unit.name }}</mat-option>
+        }
+      </mat-select>
+      @if (form.controls.plantUnitId.hasError('required')) {
+        <mat-error>Choose the plant unit.</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Equipment</mat-label>
+      <mat-select formControlName="equipmentId">
+        @for (equipment of equipmentOptions(); track equipment.id) {
+          <mat-option [value]="equipment.id"><span class="mono">{{ equipment.tag }}</span> {{ equipment.name }}</mat-option>
+        } @empty {
+          <mat-option disabled>Choose a plant unit first</mat-option>
+        }
+      </mat-select>
+      @if (mode() === 'edit') {
+        <mat-hint>Equipment can't be changed after a fault is reported.</mat-hint>
+      }
+      @if (form.controls.equipmentId.hasError('required')) {
+        <mat-error>Choose the equipment.</mat-error>
+      } @else if (form.controls.equipmentId.hasError('server')) {
+        <mat-error>{{ form.controls.equipmentId.getError('server') }}</mat-error>
+      }
+    </mat-form-field>
+  </fieldset>
+
+  <mat-form-field class="full">
+    <mat-label>Title</mat-label>
+    <input matInput formControlName="title" [maxlength]="titleMax" placeholder="e.g. Mechanical seal leaking" />
+    @if (form.controls.title.hasError('required')) {
+      <mat-error>Give the fault a short title.</mat-error>
+    } @else if (form.controls.title.hasError('server')) {
+      <mat-error>{{ form.controls.title.getError('server') }}</mat-error>
+    }
+  </mat-form-field>
+
+  <mat-form-field class="full">
+    <mat-label>What's wrong?</mat-label>
+    <textarea
+      matInput
+      formControlName="description"
+      rows="6"
+      [maxlength]="descriptionMax"
+      placeholder="What you saw, heard or measured, and where exactly."
+    ></textarea>
+    <mat-hint align="end">{{ descriptionLength().length }} / {{ descriptionMax }}</mat-hint>
+    @if (form.controls.description.hasError('required')) {
+      <mat-error>Describe the fault.</mat-error>
+    } @else if (form.controls.description.hasError('server')) {
+      <mat-error>{{ form.controls.description.getError('server') }}</mat-error>
+    }
+  </mat-form-field>
+
+  <div class="priority" role="group" aria-labelledby="priority-label">
+    <span id="priority-label" class="label">Priority</span>
+    <mat-button-toggle-group formControlName="priority" aria-labelledby="priority-label" hideSingleSelectionIndicator>
+      @for (priority of priorities; track priority) {
+        <mat-button-toggle [value]="priority" [class]="priority.toLowerCase()">{{ priority }}</mat-button-toggle>
+      }
+    </mat-button-toggle-group>
+    <span class="muted hint">Critical: safety risk or unit at risk of tripping. High: needs action this shift.</span>
+  </div>
+
+  @if (formError(); as message) {
+    <p class="error" role="alert">
+      <mat-icon aria-hidden="true">error</mat-icon>
+      {{ message }}
+    </p>
+  }
+
+  <div class="buttons">
+    <button mat-flat-button type="submit" [disabled]="submitting()">
+      @if (mode() === 'create') {
+        {{ submitting() ? 'Reporting…' : 'Report fault' }}
+      } @else {
+        {{ submitting() ? 'Saving…' : 'Save changes' }}
+      }
+    </button>
+    <button mat-button type="button" (click)="cancelled.emit()">Cancel</button>
+  </div>
+</form>

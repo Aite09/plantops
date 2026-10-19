@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PlantOps.Application.Abstractions.Persistence;
 using PlantOps.Application.Common;
 using PlantOps.Application.WorkOrders.Queries;
+using PlantOps.Domain.WorkOrders;
 
 namespace PlantOps.Infrastructure.Persistence.Queries;
 
@@ -65,6 +66,16 @@ internal sealed class WorkOrderQueries(PlantOpsDbContext db) : IWorkOrderQueries
         if (query.Priority is { } priority)
         {
             workOrders = workOrders.Where(w => w.Priority == priority);
+        }
+
+        if (query.ActiveOnly)
+        {
+            workOrders = workOrders.Where(w => w.Status != WorkOrderStatus.Closed);
+        }
+
+        if (query.AssignedToUserId is { } assignedTo)
+        {
+            workOrders = workOrders.Where(w => w.AssignedToUserId == assignedTo);
         }
 
         var totalCount = await workOrders.CountAsync(cancellationToken);

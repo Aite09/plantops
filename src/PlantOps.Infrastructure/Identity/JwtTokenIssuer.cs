@@ -10,7 +10,7 @@ internal sealed class JwtTokenIssuer(IOptions<JwtOptions> options, TimeProvider 
 {
     public const string RoleClaimType = "role";
 
-    public (string Token, DateTimeOffset ExpiresAtUtc) Issue(ApplicationUser user, IEnumerable<string> roles)
+    public (string Token, DateTimeOffset ExpiresAtUtc, int ExpiresInSeconds) Issue(ApplicationUser user, IEnumerable<string> roles)
     {
         var jwt = options.Value;
         var now = timeProvider.GetUtcNow();
@@ -38,6 +38,6 @@ internal sealed class JwtTokenIssuer(IOptions<JwtOptions> options, TimeProvider 
                 new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)), SecurityAlgorithms.HmacSha256),
         };
 
-        return (new JsonWebTokenHandler().CreateToken(descriptor), expiresAt);
+        return (new JsonWebTokenHandler().CreateToken(descriptor), expiresAt, jwt.AccessTokenMinutes * 60);
     }
 }

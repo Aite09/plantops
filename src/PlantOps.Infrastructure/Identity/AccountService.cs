@@ -42,9 +42,9 @@ internal sealed class AccountService(
         }
 
         var roles = (await userManager.GetRolesAsync(user)).Order().ToArray();
-        var (token, expiresAt) = tokenIssuer.Issue(user, roles);
+        var (token, expiresAt, expiresIn) = tokenIssuer.Issue(user, roles);
 
-        return new AccessTokenDto(token, expiresAt, new UserDto(user.Id, user.Email!, user.DisplayName, roles));
+        return new AccessTokenDto(token, expiresAt, expiresIn, new UserDto(user.Id, user.Email!, user.DisplayName, roles));
     }
 
     public async Task<Result<Guid>> CreateUserAsync(string email, string displayName, string password, string role, CancellationToken cancellationToken)

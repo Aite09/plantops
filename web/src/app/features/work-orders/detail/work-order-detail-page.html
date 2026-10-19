@@ -1,0 +1,74 @@
+@let state = view();
+<div class="page">
+  <a class="back" routerLink="/work-orders">
+    <mat-icon aria-hidden="true">arrow_back</mat-icon>
+    Work orders
+  </a>
+
+  @if (state.status === 'loading') {
+    <div aria-hidden="true" class="skeleton-detail">
+      <span class="skeleton title"></span>
+      <span class="skeleton line"></span>
+      <span class="skeleton block"></span>
+    </div>
+  } @else if (state.status === 'error') {
+    <div class="state" role="alert">
+      <mat-icon aria-hidden="true">{{ state.problem.status === 404 ? 'search_off' : 'cloud_off' }}</mat-icon>
+      <p>{{ state.problem.status === 404 ? 'This work order does not exist.' : errorMessage() }}</p>
+      @if (state.problem.status !== 404) {
+        <button mat-stroked-button type="button" (click)="retry()">Try again</button>
+      }
+    </div>
+  } @else {
+    @let wo = state.data.workOrder;
+    <header class="header">
+      <div class="badges">
+        <po-priority-badge [priority]="wo.priority" />
+        <po-status-badge [status]="wo.status" />
+      </div>
+      <h1>{{ wo.title }}</h1>
+      <p class="muted meta">
+        <span class="mono">{{ wo.plantUnitCode }} · {{ wo.equipmentTag }}</span>
+        {{ wo.equipmentName }}
+      </p>
+    </header>
+
+    <po-work-order-action-bar
+      [workOrderId]="wo.id"
+      [status]="wo.status"
+      [assignedToUserId]="wo.assignedToUserId"
+      [actions]="actions()"
+      [technicians]="technicians()"
+      [busy]="busy()"
+      (approve)="approve()"
+      (assign)="assign($event)"
+      (start)="start()"
+      (close)="close($event)"
+    />
+
+    <div class="layout">
+      <div class="main">
+        <section aria-labelledby="fault-title">
+          <h2 id="fault-title">Fault description</h2>
+          <p class="prose">{{ wo.description }}</p>
+        </section>
+
+        @if (wo.resolutionNotes) {
+          <section aria-labelledby="resolution-title">
+            <h2 id="resolution-title">Resolution</h2>
+            <p class="prose">{{ wo.resolutionNotes }}</p>
+          </section>
+        }
+
+        <section aria-labelledby="history-title">
+          <h2 id="history-title">History</h2>
+          <po-work-order-history [entries]="state.data.history" [userNames]="userNames()" />
+        </section>
+      </div>
+
+      <aside class="side" aria-label="Work order details">
+        <po-work-order-facts [workOrder]="wo" />
+      </aside>
+    </div>
+  }
+</div>

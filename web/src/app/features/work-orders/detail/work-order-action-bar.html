@@ -1,0 +1,97 @@
+@if (hasActions()) {
+  @let a = actions();
+  @if (showBar()) {
+    <section class="bar" aria-label="Actions">
+      @if (a.approve) {
+        <button mat-flat-button type="button" [disabled]="busy() !== null" (click)="approve.emit()">
+          <mat-icon>task_alt</mat-icon>
+          {{ busy() === 'approve' ? 'Approving…' : 'Approve' }}
+        </button>
+      }
+
+      @if (a.assign) {
+        <form
+          class="assign"
+          #assignFormDirective="ngForm"
+          [formGroup]="assignForm"
+          (ngSubmit)="submitAssign()"
+        >
+          <mat-form-field>
+            <mat-label>{{ assignedToUserId() ? 'Reassign to' : 'Assign to' }}</mat-label>
+            <mat-select formControlName="technicianId">
+              @for (person of candidates(); track person.id) {
+                <mat-option [value]="person.id">{{ person.displayName }}</mat-option>
+              } @empty {
+                <mat-option disabled>No other technicians</mat-option>
+              }
+            </mat-select>
+            @if (assignForm.controls.technicianId.hasError('required')) {
+              <mat-error>Choose a technician.</mat-error>
+            }
+          </mat-form-field>
+          @if (assignedToUserId()) {
+            <button mat-stroked-button type="submit" [disabled]="busy() !== null">
+              {{ busy() === 'assign' ? 'Reassigning…' : 'Reassign' }}
+            </button>
+          } @else {
+            <button mat-flat-button type="submit" [disabled]="busy() !== null">
+              {{ busy() === 'assign' ? 'Assigning…' : 'Assign' }}
+            </button>
+          }
+        </form>
+      }
+
+      @if (a.start) {
+        <button mat-flat-button type="button" [disabled]="busy() !== null" (click)="start.emit()">
+          <mat-icon>play_arrow</mat-icon>
+          {{ busy() === 'start' ? 'Starting…' : 'Start work' }}
+        </button>
+      }
+
+      @if (a.close && !closing()) {
+        <button
+          mat-flat-button
+          type="button"
+          [disabled]="busy() !== null"
+          (click)="closing.set(true)"
+        >
+          <mat-icon>check_circle</mat-icon>
+          Close work order…
+        </button>
+      }
+
+      @if (a.edit) {
+        <a mat-stroked-button [routerLink]="['/work-orders', workOrderId(), 'edit']">
+          <mat-icon>edit</mat-icon>
+          Edit
+        </a>
+      }
+    </section>
+  }
+
+  @if (closing()) {
+    <form
+      class="close-form"
+      [formGroup]="closeForm"
+      (ngSubmit)="submitClose()"
+      aria-label="Close work order"
+    >
+      <mat-form-field>
+        <mat-label>Resolution notes</mat-label>
+        <textarea #notesInput matInput formControlName="notes" rows="4" maxlength="4000"></textarea>
+        <mat-hint>What was done, and anything the next shift should know.</mat-hint>
+        @if (closeForm.controls.notes.hasError('required')) {
+          <mat-error>Describe what was done before closing.</mat-error>
+        } @else if (closeForm.controls.notes.hasError('maxlength')) {
+          <mat-error>Keep notes under 4000 characters.</mat-error>
+        }
+      </mat-form-field>
+      <div class="close-buttons">
+        <button mat-flat-button type="submit" [disabled]="busy() !== null">
+          {{ busy() === 'close' ? 'Closing…' : 'Close work order' }}
+        </button>
+        <button mat-button type="button" (click)="closing.set(false)">Cancel</button>
+      </div>
+    </form>
+  }
+}

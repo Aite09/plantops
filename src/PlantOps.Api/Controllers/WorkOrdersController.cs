@@ -17,7 +17,7 @@ namespace PlantOps.Api.Controllers;
 [Route("api/work-orders")]
 public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
 {
-    /// <summary>Lists work orders, highest priority and oldest first.</summary>
+    /// <summary>Lists work orders, highest priority and oldest first. activeOnly=true leaves out closed ones.</summary>
     [HttpGet]
     [ProducesResponseType<PagedResult<WorkOrderSummaryDto>>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
@@ -25,11 +25,13 @@ public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
         [FromQuery] WorkOrderStatus? status,
         [FromQuery] Guid? plantUnitId,
         [FromQuery] WorkOrderPriority? priority,
+        [FromQuery] Guid? assignedToUserId,
+        [FromQuery] bool activeOnly = false,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = ListWorkOrdersQuery.DefaultPageSize,
         CancellationToken cancellationToken = default)
     {
-        var result = await sender.Send(new ListWorkOrdersQuery(status, plantUnitId, priority, page, pageSize), cancellationToken);
+        var result = await sender.Send(new ListWorkOrdersQuery(status, plantUnitId, priority, assignedToUserId, activeOnly, page, pageSize), cancellationToken);
         return result.IsSuccess ? Ok(result.Value) : Problem(result.Error);
     }
 

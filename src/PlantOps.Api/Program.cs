@@ -1,7 +1,10 @@
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using PlantOps.Api.Authentication;
+using Microsoft.AspNetCore.Cors.Infrastructure;
+using Microsoft.Extensions.Options;
 using PlantOps.Api.Authorization;
+using PlantOps.Api.Configuration;
 using PlantOps.Api.Controllers;
 using PlantOps.Api.ErrorHandling;
 using PlantOps.Api.OpenApi;
@@ -58,6 +61,17 @@ builder.Services.AddRateLimiter(options =>
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
 });
 
+// CORS locked down: only the configured front-end origins, only the methods and headers the Angular app uses.
+// No cookies are involved (the token travels in the Authorization header), so credentials stay disallowed.
+builder.Services.Configure<CorsSettings>(builder.Configuration.GetSection(CorsSettings.SectionName));
+builder.Services.AddCors();
+builder.Services.AddOptions<CorsOptions>()
+    .Configure<IOptions<CorsSettings>>((cors, settings) => cors.AddDefaultPolicy(policy => policy
+        .WithOrigins(settings.Value.AllowedOrigins)
+        .WithMethods(HttpMethods.Get, HttpMethods.Post, HttpMethods.Put)
+        .WithHeaders("Authorization", "Content-Type")
+        .SetPreflightMaxAge(TimeSpan.FromMinutes(10))));
+
 builder.Services.AddOpenApi(options => options.AddDocumentTransformer<BearerSecuritySchemeTransformer>());
 
 var app = builder.Build();
@@ -84,6 +98,8 @@ if (app.Environment.IsDevelopment())
 // No UseHttpsRedirection: for an API a redirect comes too late, because the client has already sent its token
 // over plain HTTP. Clients must call https:// URLs. In Azure, TLS is terminated by App Service (Phase 6), whose
 // "HTTPS only" setting is only a redirect safety net, not a refusal.
+// Before authentication, so browser preflight (OPTIONS) requests are answered without needing a token.
+app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();

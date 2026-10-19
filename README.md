@@ -12,7 +12,7 @@ assign work orders to technicians, technicians work and close them, and every ch
 | API | .NET 10 (LTS), ASP.NET Core Web API, C# |
 | Data | Entity Framework Core 10, SQL Server 2022 (Docker locally, Azure SQL in the cloud) |
 | Auth | ASP.NET Core Identity, JWT bearer tokens, role-based policies |
-| Front end | Angular 22 (Phase 4) |
+| Front end | Angular 22 (standalone components, signals, zoneless), Angular Material 3, RxJS, typed reactive forms |
 
 ## Solution layout
 
@@ -24,6 +24,9 @@ PlantOps/
 │   ├── PlantOps.Infrastructure/  EF Core, repositories, read queries, audit interceptor, migrations, seed data.
 │   │   └── Identity/             ASP.NET Core Identity, JWT issuing, user directory (own DbContext, "auth" schema).
 │   └── PlantOps.Api/             Controllers, ProblemDetails error handling, OpenAPI, composition root.
+├── web/                          Angular front end (see "Front end" below).
+├── PRODUCT.md                    Who the UI is for and the design principles it follows.
+├── .node-version                 Node 24 for this repo (read by fnm and by CI).
 ├── Directory.Build.props         Shared compiler settings for every project
 ├── Directory.Packages.props      Central NuGet versions
 ├── docker-compose.yml            Local SQL Server
@@ -36,7 +39,8 @@ The Api project references Infrastructure only to register its services at start
 ## Getting started
 
 Prerequisites: .NET 10 SDK, Docker Desktop (on Apple Silicon, keep "Use Rosetta for x86/amd64 emulation" on),
-and the EF Core CLI (`dotnet tool install --global dotnet-ef`).
+the EF Core CLI (`dotnet tool install --global dotnet-ef`), and Node 24 for the front end. With
+[fnm](https://github.com/Schniz/fnm), `fnm install` in this folder picks the version from `.node-version`.
 
 1. Create your local secrets file and choose a strong SQL Server password:
 
@@ -79,6 +83,14 @@ and the EF Core CLI (`dotnet tool install --global dotnet-ef`).
 
    Swagger UI is at http://localhost:5297/swagger (the raw OpenAPI document is at `/openapi/v1.json`).
 
+6. Run the web app in a second terminal, then open http://localhost:4200 and sign in with a demo account:
+
+   ```bash
+   cd web
+   npm install
+   npm start
+   ```
+
 ### Trying the API in Swagger UI
 
 Demo accounts (Development only), all using your `Seed:DemoUserPassword`:
@@ -114,7 +126,45 @@ dotnet ef migrations add <Name> --context PlantOpsDbContext --project src/PlantO
 
 For Identity schema changes use `--context AuthDbContext --output-dir Identity/Migrations`.
 
+## Front end
+
+Angular 22 with standalone components, signals and zoneless change detection, Angular Material 3, RxJS and typed
+reactive forms. Design intent and principles are in [PRODUCT.md](PRODUCT.md): calm and neutral by default, with
+colour reserved for Critical/High priority, ageing work and errors.
+
+```
+web/src/app/
+├── core/
+│   ├── auth/            AuthStore (signals), JWT interceptor, route guards
+│   ├── layout/          Shell: top bar, navigation, user menu
+│   └── problem-details  RFC 7807 helpers, incl. mapping API field errors onto form controls
+├── shared/              Priority and status badges, time helpers
+└── features/
+    ├── login/
+    ├── work-orders/     list (filters, table), detail (action bar, facts, history), form (create, edit)
+    └── users/           Admin-only account management
+```
+
+- **Smart and presentational components**: pages (`*-page.ts`) inject services, load data and handle events;
+  tables, forms, badges and the action bar only take inputs and emit outputs.
+- **State**: signals for UI state, RxJS for streams. The list's filters live in the URL query string (shareable,
+  back button works), and `switchMap` cancels stale requests when filters change quickly.
+- **Auth**: the JWT is kept in `sessionStorage`: per tab and survives a refresh, but browsers restore it when a
+  closed tab is reopened, so on shared PCs people use Sign out (the token itself expires within 60 minutes). Expiry
+  is timed from the login response's `expiresInSeconds` on the device's own clock. The interceptor adds the token
+  only to requests for the PlantOps API, and signs the user out on a `401`. An HttpOnly cookie set by a
+  backend-for-frontend would protect the token from XSS better; that is the next step if the threat model needs it.
+- **Guards**: `authGuard`, `roleGuard('Admin')` and `guestGuard` decide navigation. They are convenience only;
+  the API enforces every rule, and `availableActions()` mirrors those rules just to hide buttons that would fail.
+- **Every view handles loading, error and empty states**: skeletons while loading, a retry on errors, and empty
+  states that say what to do next.
+- **Accessibility**: WCAG 2.2 AA target; axe-core reports no violations on any screen. Status and priority are
+  never colour alone, focus is always visible, and there is a skip link.
+
 ## Security model
+
+CORS: only the origins in the `Cors:AllowedOrigins` setting may call the API from a browser (in Development,
+`http://localhost:4200`), with only the methods and headers the web app uses.
 
 Authentication: `POST /api/auth/login` checks the password with ASP.NET Core Identity and returns a JWT signed with
 HMAC-SHA256, valid for 60 minutes. Every other endpoint requires a valid token (a fallback policy, so new
@@ -169,7 +219,7 @@ ports, and policies use role names that Entra app roles can match. The move is c
 | POST | `/api/auth/login` | Email and password in, JWT access token out (anonymous, rate-limited) |
 | GET | `/api/users?role=` | List users, e.g. technicians to assign (Supervisor, Admin) |
 | POST | `/api/users` | Create an account with a role (Admin) |
-| GET | `/api/work-orders?status=&plantUnitId=&priority=&page=&pageSize=` | Paged list, highest priority and oldest first |
+| GET | `/api/work-orders?status=&activeOnly=&plantUnitId=&priority=&assignedToUserId=&page=&pageSize=` | Paged list, highest priority and oldest first |
 | GET | `/api/work-orders/{id}` | Work order details, with user names |
 | GET | `/api/work-orders/{id}/history` | Audit trail: every change, who and when |
 | POST | `/api/work-orders` | Report a fault (starts as Open) |

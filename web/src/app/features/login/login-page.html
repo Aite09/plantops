@@ -1,0 +1,62 @@
+<main class="login">
+  <section class="panel" aria-labelledby="login-title">
+    <div class="brand">
+      <mat-icon aria-hidden="true">precision_manufacturing</mat-icon>
+      <span>PlantOps</span>
+    </div>
+    <h1 id="login-title">Sign in</h1>
+    <p class="muted lead">Report equipment faults and track maintenance work.</p>
+
+    @if (reason() === 'expired') {
+      <p class="notice" role="status">Your session ended. Sign in again to continue.</p>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <mat-form-field>
+        <mat-label>Email</mat-label>
+        <input matInput id="email" type="email" formControlName="email" autocomplete="username" autofocus />
+        @if (form.controls.email.hasError('required')) {
+          <mat-error>Enter your email.</mat-error>
+        } @else if (form.controls.email.hasError('email')) {
+          <mat-error>Enter a valid email address.</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Password</mat-label>
+        <input matInput id="password" type="password" formControlName="password" autocomplete="current-password" />
+        @if (form.controls.password.hasError('required')) {
+          <mat-error>Enter your password.</mat-error>
+        }
+      </mat-form-field>
+
+      @if (error(); as message) {
+        <p class="error" role="alert">
+          <mat-icon aria-hidden="true">error</mat-icon>
+          {{ message }}
+        </p>
+      }
+
+      <button mat-flat-button type="submit" class="submit" [disabled]="submitting()">
+        {{ submitting() ? 'Signing in…' : 'Sign in' }}
+      </button>
+    </form>
+
+    @if (demoAccounts.length > 0) {
+      <aside class="demo" aria-labelledby="demo-title">
+        <h2 id="demo-title">Demo accounts</h2>
+        <p class="muted">Development only. The password is your <span class="mono">Seed:DemoUserPassword</span> user-secret.</p>
+        <ul>
+          @for (account of demoAccounts; track account.email) {
+            <li>
+              <button type="button" class="demo-account" (click)="useDemoAccount(account.email)">
+                <span class="mono">{{ account.email }}</span>
+                <span class="muted">{{ account.role }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      </aside>
+    }
+  </section>
+</main>

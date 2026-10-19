@@ -1,0 +1,182 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -48px;
+  z-index: 10;
+  padding: 8px 12px;
+  border-radius: var(--po-radius);
+  background: var(--mat-sys-surface);
+  transition: top var(--po-duration) var(--po-ease-out);
+
+  &:focus {
+    top: 8px;
+  }
+}
+
+// A second neutral layer for chrome, slightly darker than the page, so content stays the brightest surface.
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 56px;
+  padding: 0 clamp(12px, 2vw, 24px);
+  background: var(--po-panel);
+  border-bottom: 1px solid var(--po-line);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 16px;
+  color: var(--po-ink);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: 0.01em;
+
+  mat-icon {
+    color: var(--mat-sys-primary);
+  }
+}
+
+.nav {
+  display: flex;
+  gap: 4px;
+
+  a {
+    padding: 8px 12px;
+    border-radius: var(--po-radius);
+    color: var(--po-ink-muted);
+    text-decoration: none;
+    font-weight: 500;
+    transition: background-color var(--po-duration) var(--po-ease-out);
+
+    &:hover {
+      background: oklch(0.93 0.008 250);
+      color: var(--po-ink);
+    }
+
+    &.active {
+      color: var(--po-ink);
+      background: oklch(0.92 0.02 250);
+    }
+  }
+}
+
+.spacer {
+  flex: 1;
+}
+
+.user {
+  height: 44px;
+  margin-left: 4px;
+  text-align: left;
+}
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  font-weight: 600;
+}
+
+.user-text {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.2;
+
+  .name {
+    color: var(--po-ink);
+    font-weight: 500;
+  }
+
+  .role {
+    color: var(--po-ink-muted);
+    font-size: 12px;
+  }
+}
+
+.menu-header {
+  padding: 8px 16px 12px;
+  border-bottom: 1px solid var(--po-line);
+  margin-bottom: 4px;
+
+  .name {
+    font-weight: 600;
+  }
+}
+
+main {
+  flex: 1;
+
+  &:focus {
+    outline: none;
+  }
+}
+
+.nav a,
+.report {
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .user-text,
+  .brand span {
+    display: none;
+  }
+
+  .brand {
+    margin-right: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar {
+    gap: 4px;
+  }
+
+  // At 320px an admin's two nav links plus the buttons don't fit; the nav scrolls within itself instead of
+  // widening the page (WCAG 1.4.10 Reflow).
+  .nav {
+    min-width: 0;
+    overflow-x: auto;
+  }
+
+  .nav a {
+    padding: 8px;
+  }
+
+  .report {
+    min-width: 44px;
+    padding: 0 10px;
+
+    mat-icon {
+      margin: 0;
+    }
+  }
+
+  // Visually hidden, still the link's accessible name.
+  .report-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

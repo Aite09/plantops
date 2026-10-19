@@ -1,0 +1,47 @@
+@let state = view();
+<div class="page">
+  <a class="back" [routerLink]="['/work-orders', id()]">
+    <mat-icon aria-hidden="true">arrow_back</mat-icon>
+    Back to work order
+  </a>
+
+  <header class="page-header">
+    <h1>Edit work order</h1>
+  </header>
+
+  @if (state.status === 'loading') {
+    <span class="skeleton" style="height: 320px" aria-hidden="true"></span>
+  } @else if (state.status === 'error') {
+    <div class="notice" role="alert">
+      <p>{{ state.problem.status === 404 ? 'This work order does not exist.' : errorMessage() }}</p>
+      @if (state.problem.status !== 404) {
+        <button mat-stroked-button type="button" (click)="retry()">Try again</button>
+      }
+    </div>
+  } @else if (!canEdit()) {
+    <div class="notice" role="status">
+      <mat-icon aria-hidden="true">lock</mat-icon>
+      <p>
+        You can't edit this work order. Supervisors can edit until it is closed; the person who reported it can edit
+        it while it is still Open.
+      </p>
+    </div>
+  } @else {
+    @if (conflict()) {
+      <div class="notice conflict" role="alert">
+        <mat-icon aria-hidden="true">sync_problem</mat-icon>
+        <p>Someone else changed this work order while you were editing, so your changes were not saved.</p>
+        <button mat-stroked-button type="button" (click)="reloadLatest()">Load their version</button>
+      </div>
+    }
+    <po-work-order-form
+      mode="edit"
+      [plantUnits]="plantUnits()"
+      [initial]="state.data"
+      [submitting]="submitting()"
+      [problem]="problem()"
+      (save)="save($event)"
+      (cancelled)="cancel()"
+    />
+  }
+</div>

@@ -1,0 +1,45 @@
+<!-- Handled in code: with <base href="/">, a plain "#main" link would load "/#main" and restart the app. -->
+<a class="skip-link" href="#main" (click)="$event.preventDefault(); main.focus()">Skip to content</a>
+
+<header class="topbar">
+  <a class="brand" routerLink="/work-orders" aria-label="PlantOps home">
+    <mat-icon aria-hidden="true">precision_manufacturing</mat-icon>
+    <span>PlantOps</span>
+  </a>
+
+  <nav class="nav" aria-label="Main">
+    <a routerLink="/work-orders" routerLinkActive="active" ariaCurrentWhenActive="page">Work orders</a>
+    @if (isAdmin()) {
+      <a routerLink="/admin/users" routerLinkActive="active" ariaCurrentWhenActive="page">Users</a>
+    }
+  </nav>
+
+  <span class="spacer"></span>
+
+  <a mat-flat-button routerLink="/work-orders/new" class="report">
+    <mat-icon>add</mat-icon>
+    <span class="report-label">Report fault</span>
+  </a>
+
+  <button mat-button class="user" [matMenuTriggerFor]="userMenu" [attr.aria-label]="accountLabel()">
+    <span class="avatar" aria-hidden="true">{{ user()?.displayName?.charAt(0) }}</span>
+    <span class="user-text">
+      <span class="name">{{ user()?.displayName }}</span>
+      <span class="role">{{ roleLabel() }}</span>
+    </span>
+  </button>
+  <mat-menu #userMenu="matMenu" xPosition="before">
+    <div class="menu-header">
+      <div class="name">{{ user()?.displayName }}</div>
+      <div class="muted">{{ user()?.email }}</div>
+    </div>
+    <button mat-menu-item (click)="logout()">
+      <mat-icon>logout</mat-icon>
+      Sign out
+    </button>
+  </mat-menu>
+</header>
+
+<main #main id="main" tabindex="-1">
+  <router-outlet />
+</main>

@@ -1,0 +1,119 @@
+.table-wrap {
+  margin-top: 16px;
+  border: 1px solid var(--po-line);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  background: var(--mat-sys-surface);
+}
+
+th.mat-mdc-header-cell {
+  background: var(--po-panel);
+  color: var(--po-ink-muted);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+tr.mat-mdc-row {
+  // Lets the title link's ::after cover the whole row, so the full row is clickable with one real link.
+  position: relative;
+  transition: background-color var(--po-duration) var(--po-ease-out);
+
+  &:hover {
+    background: oklch(0.975 0.006 250);
+  }
+
+  &:focus-within {
+    background: oklch(0.96 0.015 250);
+  }
+}
+
+.title-cell {
+  min-width: 260px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.row-link {
+  display: block;
+  color: var(--po-ink);
+  font-weight: 500;
+  text-decoration: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+
+  &:focus-visible {
+    outline: none;
+
+    &::after {
+      outline: 2px solid var(--mat-sys-primary);
+      outline-offset: -2px;
+    }
+  }
+}
+
+.tag {
+  display: block;
+  margin-top: 2px;
+  color: var(--po-ink-muted);
+  font-size: 12px;
+}
+
+.age-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.age {
+  // Above the stretched row link, so its tooltip still opens on hover.
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--po-ink-muted);
+
+  mat-icon {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+  }
+
+  &.ageing {
+    color: var(--po-high-ink);
+    font-weight: 500;
+  }
+}
+
+@media (max-width: 760px) {
+  .mat-column-unit,
+  .mat-column-assignee {
+    display: none;
+  }
+}
+
+// Phone width: priority, title and status are what matter; the exact age is one tap away on the detail page.
+@media (max-width: 600px) {
+  td.mat-mdc-cell,
+  th.mat-mdc-header-cell {
+    padding: 0 8px;
+  }
+
+  .title-cell {
+    min-width: 0;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .mat-column-age {
+    display: none;
+  }
+}
