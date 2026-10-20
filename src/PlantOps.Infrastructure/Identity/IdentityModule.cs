@@ -44,6 +44,11 @@ public static class IdentityModule
         services.AddOptions<JwtOptions>()
             .Bind(configuration.GetSection(JwtOptions.SectionName))
             .ValidateDataAnnotations()
+            // In Azure the key can be a Key Vault reference. If App Service can't resolve it, the app receives the
+            // reference text itself, which is long enough to pass MinLength but publicly guessable. Refuse to start.
+            .Validate(
+                jwt => !jwt.SigningKey.StartsWith("@Microsoft.KeyVault(", StringComparison.OrdinalIgnoreCase),
+                "Jwt:SigningKey is an unresolved Key Vault reference; check the app's access to the vault.")
             .ValidateOnStart();
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();

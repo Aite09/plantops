@@ -34,4 +34,31 @@ public sealed class LoginRateLimitingTests(PlantOpsApiFactory factory) : IAsyncL
 
         await fourth.ShouldBeProblemAsync(HttpStatusCode.TooManyRequests);
     }
+
+    [Fact]
+    public async Task Behind_a_proxy_each_client_IP_has_its_own_login_limit()
+    {
+        // In Azure the API runs behind App Service's front end with ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+        // (infra/main.bicep). The client IP then comes from X-Forwarded-For, so one visitor using up the limit doesn't
+        // lock everyone else out. FORWARDEDHEADERS_ENABLED is that same setting without the ASPNETCORE_ prefix.
+        await using var limitedApi = factory.WithWebHostBuilder(builder => builder
+            .UseSetting("FORWARDEDHEADERS_ENABLED", "true")
+            .UseSetting("RateLimiting:LoginPermitLimit", "1")
+            .UseSetting("RateLimiting:LoginWindowSeconds", "3600"));
+        var client = limitedApi.CreateClient();
+
+        await (await LoginFromAsync(client, "203.0.113.10")).ShouldHaveStatusAsync(HttpStatusCode.OK);
+        await (await LoginFromAsync(client, "203.0.113.10")).ShouldBeProblemAsync(HttpStatusCode.TooManyRequests);
+        await (await LoginFromAsync(client, "203.0.113.20")).ShouldHaveStatusAsync(HttpStatusCode.OK);
+    }
+
+    private static Task<HttpResponseMessage> LoginFromAsync(HttpClient client, string clientIp)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
+        {
+            Content = JsonContent.Create(new LoginRequest(TestUsers.Staff.Email, TestUsers.Password), options: TestJson.Options),
+        };
+        request.Headers.Add("X-Forwarded-For", clientIp);
+        return client.SendAsync(request, Ct);
+    }
 }

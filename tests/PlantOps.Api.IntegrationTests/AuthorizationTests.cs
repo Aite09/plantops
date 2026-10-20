@@ -68,6 +68,23 @@ public sealed class AuthorizationTests(PlantOpsApiFactory factory) : IAsyncLifet
     }
 
     [Fact]
+    public async Task Only_an_Admin_sees_Admin_accounts_in_the_user_list()
+    {
+        // The public demo publishes the Supervisor's password, so the list must not reveal who the Admins are.
+        var supervisor = await factory.CreateClientAsAsync(TestUsers.Supervisor);
+        var admin = await factory.CreateClientAsAsync(TestUsers.Admin);
+
+        var seenBySupervisor = await supervisor.GetFromJsonAsync<List<UserDto>>("/api/users", TestJson.Options, Ct);
+        var adminsSeenBySupervisor = await supervisor.GetFromJsonAsync<List<UserDto>>("/api/users?role=Admin", TestJson.Options, Ct);
+        var seenByAdmin = await admin.GetFromJsonAsync<List<UserDto>>("/api/users", TestJson.Options, Ct);
+
+        seenBySupervisor.Should().Contain(u => u.Id == TestUsers.Staff.Id)
+            .And.NotContain(u => u.Roles.Contains(Roles.Admin));
+        adminsSeenBySupervisor.Should().BeEmpty();
+        seenByAdmin.Should().Contain(u => u.Id == TestUsers.Admin.Id);
+    }
+
+    [Fact]
     public async Task Supervisor_cannot_create_users()
     {
         var supervisor = await factory.CreateClientAsAsync(TestUsers.Supervisor);

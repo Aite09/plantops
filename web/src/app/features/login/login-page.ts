@@ -27,6 +27,7 @@ const DEMO_ACCOUNTS = [
 export class LoginPage {
   readonly #auth = inject(AuthStore);
   readonly #router = inject(Router);
+  readonly #config = inject(APP_CONFIG);
 
   /** Query parameters, bound by the router (withComponentInputBinding). */
   readonly returnUrl = input<string>();
@@ -40,10 +41,18 @@ export class LoginPage {
 
   protected readonly submitting = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly demoAccounts = inject(APP_CONFIG).showDemoAccounts ? DEMO_ACCOUNTS : [];
+  /** The public demo's shared password, from /config.json. Null locally, where it is the developer's user-secret. */
+  protected readonly demoPassword = this.#config.demoPassword;
+  /** The public demo has no Admin account (an Admin could create accounts), so Admin is only offered locally. */
+  protected readonly demoAccounts = !this.#config.showDemoAccounts
+    ? []
+    : this.demoPassword
+      ? DEMO_ACCOUNTS.filter((account) => account.role !== 'Admin')
+      : DEMO_ACCOUNTS;
 
   protected useDemoAccount(email: string): void {
-    this.form.patchValue({ email });
+    // With the public password known, one click fills in the whole form; locally only the email.
+    this.form.patchValue(this.demoPassword ? { email, password: this.demoPassword } : { email });
     document.getElementById('password')?.focus();
   }
 

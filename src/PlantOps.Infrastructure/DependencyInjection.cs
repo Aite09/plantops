@@ -48,7 +48,7 @@ public static class DependencyInjection
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
-                "Connection string 'PlantOps' is missing. Set it with `dotnet user-secrets` locally (see README).");
+                "Connection string 'PlantOps' is missing. Set it with `dotnet user-secrets` locally (see README); in Azure it is the ConnectionStrings__PlantOps app setting.");
         }
 
         return connectionString;

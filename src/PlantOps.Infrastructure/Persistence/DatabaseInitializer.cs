@@ -10,11 +10,14 @@ namespace PlantOps.Infrastructure.Persistence;
 public static class DatabaseInitializer
 {
     public const string DemoPasswordKey = "Seed:DemoUserPassword";
+    public const string AdminEmailKey = "Bootstrap:AdminEmail";
+    public const string AdminPasswordKey = "Bootstrap:AdminPassword";
 
     /// <summary>
-    /// Applies pending migrations and loads demo users and sample data. Development only: in deployed environments the
-    /// CI/CD pipeline applies migrations, so the app's runtime identity needs no schema-change (DDL) rights
-    /// and a failed migration fails the deployment instead of the app's startup.
+    /// Development: applies pending migrations, then loads every demo user (Admin included) and the sample data.
+    /// Deployed environments never run this. The pipeline applies migrations with its own identity, so the app's
+    /// runtime identity needs no schema-change (DDL) rights, and a failed migration fails the deployment instead of the
+    /// app's startup.
     /// </summary>
     public static async Task InitializeDevelopmentDatabaseAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
     {
@@ -22,17 +25,52 @@ public static class DatabaseInitializer
         var provider = scope.ServiceProvider;
 
         await provider.GetRequiredService<AuthDbContext>().Database.MigrateAsync(cancellationToken);
-        var db = provider.GetRequiredService<PlantOpsDbContext>();
-        await db.Database.MigrateAsync(cancellationToken);
+        await provider.GetRequiredService<PlantOpsDbContext>().Database.MigrateAsync(cancellationToken);
+        await SeedAsync(provider, includeAdmin: true, cancellationToken);
+    }
 
-        var demoPassword = provider.GetRequiredService<IConfiguration>()[DemoPasswordKey];
-        if (string.IsNullOrWhiteSpace(demoPassword))
-        {
-            throw new InvalidOperationException(
-                $"'{DemoPasswordKey}' is missing. Set a demo password with `dotnet user-secrets` (see README).");
-        }
+    /// <summary>
+    /// Deployed environments: `PlantOps.Api seed-demo`, run by the deploy pipeline after the migration bundles. Loads
+    /// the public demo accounts (no Admin) and, into an empty table, the sample work orders. Rows only, no DDL. Safe to
+    /// run again: it adds what is missing, applies a changed demo password and removes any extra role from a demo
+    /// account.
+    /// </summary>
+    public static async Task SeedDemoDataAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
+    {
+        await using var scope = services.CreateAsyncScope();
+        await SeedAsync(scope.ServiceProvider, includeAdmin: false, cancellationToken);
+    }
 
-        await DevIdentitySeeder.SeedAsync(provider.GetRequiredService<UserManager<ApplicationUser>>(), demoPassword);
-        await DevDataSeeder.SeedAsync(db, provider.GetRequiredService<TimeProvider>().GetUtcNow(), cancellationToken);
+    /// <summary>
+    /// `PlantOps.Api create-admin`, run once by the owner from their own machine (infra/README.md step 12). The email
+    /// and password are given at run time and never stored. Safe to run again; a re-run sets the password given then.
+    /// </summary>
+    public static async Task CreateAdminAsync(this IServiceProvider services)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var provider = scope.ServiceProvider;
+        var configuration = provider.GetRequiredService<IConfiguration>();
+
+        await IdentitySeeder.EnsureAdminAsync(
+            provider.GetRequiredService<UserManager<ApplicationUser>>(),
+            Required(configuration, AdminEmailKey),
+            Required(configuration, AdminPasswordKey));
+    }
+
+    private static async Task SeedAsync(IServiceProvider provider, bool includeAdmin, CancellationToken cancellationToken)
+    {
+        var demoPassword = Required(provider.GetRequiredService<IConfiguration>(), DemoPasswordKey);
+
+        await IdentitySeeder.SeedDemoUsersAsync(provider.GetRequiredService<UserManager<ApplicationUser>>(), demoPassword, includeAdmin);
+        await DemoDataSeeder.SeedAsync(
+            provider.GetRequiredService<PlantOpsDbContext>(), provider.GetRequiredService<TimeProvider>().GetUtcNow(), cancellationToken);
+    }
+
+    private static string Required(IConfiguration configuration, string key)
+    {
+        var value = configuration[key];
+        return string.IsNullOrWhiteSpace(value)
+            ? throw new InvalidOperationException($"'{key}' is missing. The README says where it comes from in each environment.")
+            : value;
     }
 }

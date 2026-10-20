@@ -6,15 +6,22 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      run_database_step:
+        description: Also run the migration bundles, the demo seed and the /health check (e.g. after changing DEMO_PASSWORD)
+        type: boolean
+        default: false
 
-# Least privilege: CI only needs to read the code.
+# Least privilege: CI only needs to read the code. Each deploy job states exactly what it needs.
 permissions:
   contents: read
 
-# One run per branch or PR; a new push cancels the run it replaces.
+# One run per branch or PR, and a new push cancels the run it replaces. Except on main: a run there may be deploying,
+# and stopping it half-way (say, between the migrations and the app deploy) would leave production between versions.
+# On main a newer run waits instead, and GitHub keeps only the newest waiting run.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # An explicit "shell: bash" makes GitHub run every step with -eo pipefail, so a failing command piped into tee or jq
 # fails the step instead of being hidden by the last command in the pipe.
@@ -83,6 +90,22 @@ jobs:
           dotnet list package --vulnerable --include-transitive | tee vulnerable.txt
           if grep -q "has the following vulnerable packages" vulnerable.txt; then exit 1; fi
 
+      # Build once: the deploy job ships exactly this output. Framework-dependent for linux-x64 only (App Service
+      # provides .NET 10), which leaves out the native libraries for other platforms.
+      - name: Publish API
+        if: github.ref == 'refs/heads/main'
+        run: >
+          dotnet publish src/PlantOps.Api/PlantOps.Api.csproj --configuration Release
+          --runtime linux-x64 --self-contained false --output artifacts/api
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: github.ref == 'refs/heads/main'
+        with:
+          name: api
+          path: artifacts/api
+          if-no-files-found: error
+          retention-days: 7 # deploy-web can wait for an approval; free on public repos
+
   frontend:
     name: Frontend (test, build, audit)
     runs-on: ubuntu-24.04
@@ -106,6 +129,16 @@ jobs:
       # Only runtime dependencies ship to users; dev tooling advisories do not fail the build.
       - run: npm audit --omit=dev --audit-level=high
 
+      # The production build is the same for every environment (settings come from /config.json at start-up), so the
+      # deploy-web job ships this exact output.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: github.ref == 'refs/heads/main'
+        with:
+          name: web
+          path: web/dist/plantops-web/browser
+          if-no-files-found: error
+          retention-days: 7 # deploy-web can wait for an approval; free on public repos
+
   docker:
     name: Docker images
     runs-on: ubuntu-24.04
@@ -124,7 +157,234 @@ jobs:
         run: |
           docker run --detach --name web --publish 8081:8080 \
             --env API_BASE_URL=https://api.example.test --env SHOW_DEMO_ACCOUNTS=false plantops-web:ci
-          for i in $(seq 1 10); do curl -fsS http://localhost:8081/config.json && break; sleep 1; done
+          for _ in $(seq 1 10); do curl -fsS http://localhost:8081/config.json && break; sleep 1; done
           curl -fsS http://localhost:8081/config.json | jq -e '.apiBaseUrl == "https://api.example.test" and .showDemoAccounts == false'
           curl -fsSI http://localhost:8081/ | grep -i "^x-content-type-options: nosniff"
           docker rm --force web
+
+  deploy:
+    name: Deploy to Azure
+    needs: [backend, frontend, docker]
+    # Pushes and manual runs on main only, never pull requests. The 'production' environment admits only main, and the
+    # Azure federated credential trusts only that environment's subject, so nothing else can get an Azure token.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04 # standard runner: free for public repos (larger runners are always billed)
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ vars.API_BASE_URL }}
+    permissions:
+      contents: read
+      deployments: read # find the last successful production deployment (database step)
+      id-token: write   # GitHub's OIDC token for azure/login; no Azure credential is stored anywhere
+    env:
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      SQL_SERVER_NAME: ${{ vars.SQL_SERVER_NAME }}
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
+      WEB_URL: ${{ vars.WEB_URL }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # full history: the database step compares with the last deployed commit
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: api
+          path: artifacts/api
+
+      # The database step (migration bundles, then the demo seed) runs only when it can change something: on the first
+      # deployment, when the migrations or the seed code changed since the last successful deployment, or when asked
+      # for by hand.
+      # Whenever in doubt it runs, because running it again is always safe: bundles apply only pending migrations and
+      # the seed only changes what differs. When it is skipped, nothing in this run touches the database.
+      - name: Decide whether the database needs updating
+        id: db
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.run_database_step }}
+        run: |
+          needed=true
+          if [[ "$FORCE" != "true" ]]; then
+            last=""
+            # GitHub records a deployment for every run of either deploy job (deploy-web only ever runs after this
+            # job succeeded, for the same commit); take the newest one that succeeded.
+            while read -r id sha; do
+              state=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses?per_page=1" --jq '.[0].state // ""' || true)
+              if [[ "$state" == "success" ]]; then last="$sha"; break; fi
+            done < <(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=production&per_page=50" --jq '.[] | "\(.id) \(.sha)"' || true)
+            echo "Last successful deployment: ${last:-none}"
+            # The migrations, and the code that decides what the demo seed writes.
+            if [[ -n "$last" ]] && git diff --quiet "$last" "$GITHUB_SHA" -- \
+                src/PlantOps.Infrastructure/Persistence/Migrations src/PlantOps.Infrastructure/Identity/Migrations \
+                src/PlantOps.Infrastructure/Persistence/Seed src/PlantOps.Infrastructure/Identity/IdentitySeeder.cs \
+                src/PlantOps.Infrastructure/Persistence/DatabaseInitializer.cs; then
+              needed=false
+            fi
+          fi
+          echo "Database step needed: $needed"
+          echo "needed=$needed" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        if: steps.db.outputs.needed == 'true'
+        with:
+          global-json-file: global.json
+
+      # One bundle per DbContext: an executable that applies that context's pending migrations under EF Core's
+      # migration lock. Built from this commit's source, before signing in to Azure.
+      - name: Build migration bundles
+        if: steps.db.outputs.needed == 'true'
+        env:
+          ASPNETCORE_ENVIRONMENT: Production
+          # The API refuses to start without a connection string, and building a bundle starts it far enough to read
+          # the DbContext setup. Nothing connects while building.
+          ConnectionStrings__PlantOps: Server=build-only-placeholder
+        run: |
+          dotnet restore
+          dotnet tool restore
+          for context in AuthDbContext PlantOpsDbContext; do
+            dotnet ef migrations bundle --context "$context" \
+              --project src/PlantOps.Infrastructure --startup-project src/PlantOps.Api \
+              --configuration Release --output "artifacts/efbundle-$context" --force
+          done
+
+      # GitHub's OIDC token is exchanged for an Entra token of the deploy identity. This is placed just before the first
+      # Azure call, because GitHub's token can only be exchanged for about 5 minutes.
+      - name: Sign in to Azure
+        id: login
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Open the database firewall for this runner
+        id: firewall
+        if: steps.db.outputs.needed == 'true'
+        run: |
+          ip=$(curl -fsS --max-time 10 https://api.ipify.org)
+          [[ "$ip" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || { echo "Unexpected IP address: '$ip'"; exit 1; }
+          az sql server firewall-rule create --resource-group "$AZURE_RESOURCE_GROUP" --server "$SQL_SERVER_NAME" \
+            --name "gh-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --start-ip-address "$ip" --end-ip-address "$ip" --output none
+          # Get the SQL access token now, while GitHub's OIDC token can still be exchanged. The Azure CLI caches it
+          # (about an hour), and the bundles and the seed below receive it from that cache via Active Directory Default.
+          az account get-access-token --resource https://database.windows.net/ --output none
+
+      - name: Apply migrations and seed the demo data
+        if: steps.db.outputs.needed == 'true'
+        env:
+          ASPNETCORE_ENVIRONMENT: Production
+          # Entra-only, no password: SqlClient's Active Directory Default uses the Azure CLI session from azure/login.
+          ConnectionStrings__PlantOps: Server=tcp:${{ vars.SQL_SERVER_FQDN }},1433;Database=${{ vars.SQL_DATABASE_NAME }};Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;Connect Timeout=60
+          Seed__DemoUserPassword: ${{ vars.DEMO_PASSWORD }}
+        run: |
+          # A new firewall rule can take a few minutes to apply, so the first bundle retries until it gets in. A paused
+          # database (error 40613) is retried inside the bundle by EF Core's retrying execution strategy.
+          for attempt in $(seq 1 10); do
+            ./artifacts/efbundle-AuthDbContext && break
+            if [[ $attempt -eq 10 ]]; then exit 1; fi
+            echo "Attempt $attempt failed; retrying in 30 s"; sleep 30
+          done
+          ./artifacts/efbundle-PlantOpsDbContext
+          # The demo accounts (no Admin) and the sample work orders: rows only, and only what is missing.
+          cd artifacts/api && dotnet PlantOps.Api.dll seed-demo
+
+      # Runs on every deploy that signed in, even after a failure or a cancellation, and even when the database step
+      # was skipped: then it removes any rule a crashed run left behind. Deployments never overlap (see concurrency), so
+      # any gh-* rule found is this run's or a leftover. A control-plane call only; it never wakes the database.
+      - name: Close the database firewall
+        if: always() && steps.login.outcome == 'success'
+        run: |
+          # Listed into a variable first: a failing command inside a for loop's word list would not fail the step.
+          rules=$(az sql server firewall-rule list --resource-group "$AZURE_RESOURCE_GROUP" --server "$SQL_SERVER_NAME" \
+            --query "[?starts_with(name, 'gh-')].name" --output tsv)
+          for rule in $rules; do
+            az sql server firewall-rule delete --resource-group "$AZURE_RESOURCE_GROUP" --server "$SQL_SERVER_NAME" --name "$rule"
+          done
+
+      - name: Deploy the API
+        uses: azure/webapps-deploy@02a81bead70021f5284939794bcec79c271ab383 # v3.0.8
+        with:
+          app-name: ${{ vars.API_APP_NAME }}
+          resource-group-name: ${{ vars.AZURE_RESOURCE_GROUP }}
+          package: artifacts/api
+          clean: true
+          restart: true
+
+      - name: Smoke test the API
+        env:
+          DB_STEP_RAN: ${{ steps.db.outputs.needed }}
+        run: |
+          # The API restarted with the deploy, and F1 has no Always On, so the first request also starts .NET.
+          for attempt in $(seq 1 12); do
+            curl -fsS --max-time 60 "$API_BASE_URL/health/live" && break
+            if [[ $attempt -eq 12 ]]; then exit 1; fi
+            sleep 10
+          done
+          echo
+          # Readiness signs in to SQL, and any sign-in resumes a paused serverless database for at least an hour of
+          # free allowance. So it is checked only when the database step above already woke the database. To check
+          # it on demand: gh workflow run ci.yml -f run_database_step=true
+          if [[ "$DB_STEP_RAN" == "true" ]]; then
+            for attempt in $(seq 1 4); do
+              curl -fsS --max-time 150 "$API_BASE_URL/health" && break
+              if [[ $attempt -eq 4 ]]; then exit 1; fi
+              sleep 30
+            done
+            echo
+          else
+            echo "Database step skipped, so /health is skipped too (it would wake the free database)."
+          fi
+          # CORS: the API must allow the front end's exact origin. A preflight is answered by the CORS middleware
+          # without reaching a controller or the database.
+          curl -fsS -o /dev/null -D - -X OPTIONS "$API_BASE_URL/api/auth/login" \
+            -H "Origin: $WEB_URL" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: content-type" \
+            | grep -i "^access-control-allow-origin: $WEB_URL"
+
+  # The front end, in its own job with NO id-token permission. The Static Web Apps action runs Microsoft's
+  # staticappsclient:stable image, a mutable tag the commit pin doesn't freeze. Here it gets the SWA upload token only,
+  # never anything that can become an Azure token. Runs after the API, so a new front end never calls an old API.
+  deploy-web:
+    name: Deploy front end
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: production # the SWA token is a production environment secret, so only main can use it
+      url: ${{ vars.WEB_URL }}
+    permissions:
+      contents: read
+    env:
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
+      WEB_URL: ${{ vars.WEB_URL }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: web
+          path: artifacts/web
+
+      # The build is the same for every environment; this deployment's settings go into config.json. jq escapes the
+      # values, so any character in the demo password still produces valid JSON.
+      - name: Configure the front end
+        env:
+          DEMO_PASSWORD: ${{ vars.DEMO_PASSWORD }}
+        run: >
+          jq -n --arg api "$API_BASE_URL" --arg password "$DEMO_PASSWORD"
+          '{apiBaseUrl: $api, showDemoAccounts: true, demoPassword: $password}' > artifacts/web/config.json
+
+      - name: Deploy the front end
+        uses: Azure/static-web-apps-deploy@4d27395796ac319302594769cfe812bd207490b1 # v1 branch head (2024-09-11); there are no v1.x release tags
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: upload
+          app_location: artifacts/web # already built: uploaded as-is, staticwebapp.config.json included
+          output_location: ''
+          api_location: ''
+          skip_app_build: true
+          skip_api_build: true
+
+      - name: Smoke test the front end
+        run: |
+          # Served with its security headers, and pointing at this API.
+          curl -fsS "$WEB_URL/config.json" | jq -e --arg api "$API_BASE_URL" '.apiBaseUrl == $api' > /dev/null
+          curl -fsSI "$WEB_URL/" | grep -i "^x-content-type-options: nosniff"

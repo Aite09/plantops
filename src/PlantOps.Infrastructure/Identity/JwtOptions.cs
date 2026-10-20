@@ -5,7 +5,8 @@ namespace PlantOps.Infrastructure.Identity;
 /// <summary>
 /// Options pattern: the "Jwt" configuration section, bound to a typed class and validated at startup, so a missing
 /// or weak signing key stops the app from starting instead of failing on the first login.
-/// SigningKey is a secret: user-secrets locally, Azure Key Vault in the cloud, never appsettings.json.
+/// SigningKey is a secret: user-secrets locally; in Azure the Jwt__SigningKey app setting (encrypted at rest), which is
+/// a Key Vault reference when infra/main.bicep's enableKeyVault is on. Never appsettings.json.
 /// </summary>
 public sealed class JwtOptions
 {

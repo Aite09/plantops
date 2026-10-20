@@ -45,7 +45,14 @@
     @if (demoAccounts.length > 0) {
       <aside class="demo" aria-labelledby="demo-title">
         <h2 id="demo-title">Demo accounts</h2>
-        <p class="muted">Development only. The password is your <span class="mono">Seed:DemoUserPassword</span> user-secret (<span class="mono">DEMO_USER_PASSWORD</span> in Docker).</p>
+        @if (demoPassword) {
+          <p class="muted">
+            Every demo account uses the password <span class="mono">{{ demoPassword }}</span>. Pick one to fill in the form.
+            The free database sleeps when idle, so the first sign-in can take a minute or two.
+          </p>
+        } @else {
+          <p class="muted">Development only. The password is your <span class="mono">Seed:DemoUserPassword</span> user-secret (<span class="mono">DEMO_USER_PASSWORD</span> in Docker).</p>
+        }
         <ul>
           @for (account of demoAccounts; track account.email) {
             <li>

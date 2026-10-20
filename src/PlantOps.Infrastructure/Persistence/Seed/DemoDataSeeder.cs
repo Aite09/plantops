@@ -5,10 +5,10 @@ using PlantOps.Domain.WorkOrders;
 namespace PlantOps.Infrastructure.Persistence.Seed;
 
 /// <summary>
-/// Sample work orders for local development only. Built through the aggregate's own methods,
-/// so even seed data has to obey the status rules.
+/// Sample work orders for local development and the public demo, added only while there are no work orders at
+/// all. Built through the aggregate's own methods, so even seed data has to obey the status rules.
 /// </summary>
-internal static class DevDataSeeder
+internal static class DemoDataSeeder
 {
     private sealed record Sample(
         string EquipmentTag,

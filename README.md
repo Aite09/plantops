@@ -28,6 +28,7 @@ PlantOps/
 ├── web/                          Angular front end (see "Front end" below), Dockerfile and nginx config.
 ├── .config/dotnet-tools.json     Pinned .NET tools (ReportGenerator).
 ├── .github/                      CI workflow and Dependabot config.
+├── infra/                        Azure infrastructure (Bicep), the one-time setup runbook and SQL grants.
 ├── PRODUCT.md                    Who the UI is for and the design principles it follows.
 ├── .node-version                 Node 24 for this repo (read by fnm and by CI).
 ├── Directory.Build.props         Shared compiler settings for every project
@@ -42,7 +43,7 @@ The Api project references Infrastructure only to register its services at start
 ## Getting started
 
 Prerequisites: .NET 10 SDK, Docker Desktop (on Apple Silicon, keep "Use Rosetta for x86/amd64 emulation" on),
-the EF Core CLI (`dotnet tool install --global dotnet-ef`), and Node 24 for the front end. With
+the EF Core CLI (pinned in `.config/dotnet-tools.json`: run `dotnet tool restore`), and Node 24 for the front end. With
 [fnm](https://github.com/Schniz/fnm), `fnm install` in this folder picks the version from `.node-version`.
 
 1. Create your local secrets file and choose a strong SQL Server password:
@@ -105,15 +106,15 @@ docker compose up -d --build
 
 Open http://localhost:8081 for the web app. The API is at http://localhost:8080 (Swagger UI at `/swagger`, health
 at `/health`). The API container runs as Development, so it applies migrations and creates the demo accounts with
-`DEMO_USER_PASSWORD`. Both setups use the same database volume, so if you already ran the API from source, the
-demo accounts keep the password you set there (use the same value, or `docker compose down -v` to start from an
-empty database). The web container is nginx serving the production Angular build. It writes `/config.json`
+`DEMO_USER_PASSWORD`. Both setups use the same database volume; the demo accounts take the password of whichever
+setup started last. The web container is nginx serving the production Angular build. It writes `/config.json`
 from its `API_BASE_URL` and `SHOW_DEMO_ACCOUNTS` variables when it starts, so the same image works in any
 environment. Both images run as non-root users. `docker compose down` stops everything and keeps the data.
 
 ### Trying the API in Swagger UI
 
-Demo accounts (Development only), all using your `Seed:DemoUserPassword`:
+Demo accounts, all sharing one password: locally your `Seed:DemoUserPassword`; on the public Azure demo, the
+password shown on its login page. The public demo has every account below except Admin.
 
 | Email | Name | Role |
 | --- | --- | --- |
@@ -190,7 +191,7 @@ web/src/app/
 | --- | --- | --- |
 | `tests/PlantOps.Domain.UnitTests` | Unit | The `WorkOrder` state machine (every from/to pair), invariants, the Result type |
 | `tests/PlantOps.Application.UnitTests` | Unit | Handlers with mocked ports (Moq) and a fake clock; validators; the validation pipeline behavior |
-| `tests/PlantOps.Api.IntegrationTests` | Integration | The real API over HTTP against a real SQL Server in Docker: auth, policies, lifecycle, audit, concurrency, ProblemDetails, CORS, rate limiting |
+| `tests/PlantOps.Api.IntegrationTests` | Integration | The real API over HTTP against a real SQL Server in Docker: auth, policies, lifecycle, audit, concurrency, ProblemDetails, CORS, rate limiting, demo seeding and the first-Admin command (each on its own database) |
 | `tests/PlantOps.ArchitectureTests` | Architecture | The Clean Architecture rules as tests: Domain depends on nothing, Application has no EF Core or ASP.NET Core, handlers are sealed and internal |
 | `web/src/**/*.spec.ts` | Front-end unit | `availableActions`, the JWT interceptor, the guards, ProblemDetails mapping |
 
@@ -224,18 +225,32 @@ dotnet reportgenerator -reports:"TestResults/**/*.cobertura*.xml" -targetdir:cov
 
 ## Continuous integration
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to `main` and every pull request, as
-three parallel jobs:
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to `main` and every pull request. Three
+check jobs run in parallel; on `main`, two deploy jobs follow:
 
 | Job | What it checks |
 | --- | --- |
 | Backend | Release build (warnings are errors), all four test projects including the Testcontainers integration tests, a coverage report in the run summary (HTML as an artifact), a minimum of 80% line coverage, and no known-vulnerable NuGet packages |
 | Frontend | `npm ci`, the Vitest suite, the production build (with its bundle budgets), and `npm audit` on runtime dependencies |
 | Docker images | Both images build, and the web image serves `/config.json` from its environment variables with the security headers |
+| Deploy to Azure (main only) | After the three jobs pass: migrations and demo seed only when a migration or the seed code changed, the tested API build to App Service, then API smoke tests |
+| Deploy front end (main only) | After the API deploy: the tested web build and its config.json to Static Web Apps, in a job with no Azure credentials, then front-end smoke tests |
 
-The workflow has read-only permissions, cancels superseded runs, and pins every action to a commit SHA.
+The workflow is read-only by default (only the deploy job may request an Azure token), cancels superseded runs
+except on `main` (a deploy is never stopped half-way), and pins every action to a commit SHA.
 [Dependabot](.github/dependabot.yml) opens grouped monthly PRs for actions, NuGet and npm (NuGet and npm: minor
 and patch only; actions: every release).
+
+## Deployment
+
+The public demo runs on Azure for Students at $0: the API on App Service F1 (Linux, .NET 10), the Angular build on
+Static Web Apps Free, and Azure SQL's free serverless offer, which pauses rather than bills when the monthly
+allowance runs out. Azure Policy deny rules make paid SKUs impossible to create. There are no database passwords
+(Entra-only SQL, managed identities) and no Azure credentials in GitHub (OIDC). The only secret is the Static Web
+Apps deployment token. CI deploys exactly what it tested; migrations run in the pipeline with their own identity,
+only when a migration or the seed code changed, and the readiness check (`/health`) runs only on those deploys, so a routine deploy
+never wakes the free database. Only `/health/live` is safe to monitor. Infrastructure and the one-time setup are
+in [infra/README.md](infra/README.md).
 
 ## Security model
 
@@ -245,7 +260,8 @@ CORS: only the origins in the `Cors:AllowedOrigins` setting may call the API fro
 Authentication: `POST /api/auth/login` checks the password with ASP.NET Core Identity and returns a JWT signed with
 HMAC-SHA256, valid for 60 minutes. Every other endpoint except the two health checks requires a valid token (a
 fallback policy, so new endpoints are protected by default). The health checks are anonymous for load balancers and
-return only `Healthy` or `Unhealthy`; the one that queries the database has a rate limit shared by all clients. Five wrong passwords lock an account for 15 minutes, and login is
+return only `Healthy` or `Unhealthy`; the one that queries the database has a rate limit shared by all clients. Five wrong passwords lock an account for 15 minutes (except the shared demo accounts: their password is public, so
+lockout would only let visitors lock each other out), and login is
 rate-limited per IP. Wrong email, wrong password and a locked account all return the same `401`, and an unknown
 email still runs a password-hash check, so neither the response nor its timing reveals which accounts exist.
 
@@ -265,7 +281,7 @@ Authorization happens at two levels:
 | Edit a work order | own, while Open | ✓ | own, while Open | ✓ |
 | Approve, assign | | ✓ | | ✓ |
 | Start, close | | | assigned only | |
-| List users | | ✓ | | ✓ |
+| List users | | ✓ (not Admins) | | ✓ |
 | Create users | | | | ✓ |
 
 Audit log: an EF Core `SaveChangesInterceptor` on the business `PlantOpsDbContext` writes an `AuditEntries` row
@@ -294,7 +310,7 @@ ports, and policies use role names that Entra app roles can match. The move is c
 | Method | Route | Purpose |
 | --- | --- | --- |
 | POST | `/api/auth/login` | Email and password in, JWT access token out (anonymous, rate-limited) |
-| GET | `/api/users?role=` | List users, e.g. technicians to assign (Supervisor, Admin) |
+| GET | `/api/users?role=` | List users, e.g. technicians to assign (Supervisor: every account except Admins; Admin: all) |
 | POST | `/api/users` | Create an account with a role (Admin) |
 | GET | `/api/work-orders?status=&activeOnly=&plantUnitId=&priority=&assignedToUserId=&page=&pageSize=` | Paged list, highest priority and oldest first |
 | GET | `/api/work-orders/{id}` | Work order details, with user names |
@@ -307,6 +323,6 @@ ports, and policies use role names that Entra app roles can match. The move is c
 | POST | `/api/work-orders/{id}/close` | InProgress → Closed (assigned technician only) |
 | GET | `/api/plant-units` | Plant units with their equipment |
 | GET | `/health/live` | Liveness: the process is up, no dependencies (anonymous; Azure probes this) |
-| GET | `/health` | Readiness: the API can reach the database (anonymous, rate-limited across all clients) |
+| GET | `/health` | Readiness: the API can reach the database (anonymous, rate-limited across all clients); each call resumes a paused serverless database, so monitor `/health/live` instead |
 
 Work orders are never deleted: they are maintenance history, and Closed is the end of the lifecycle.

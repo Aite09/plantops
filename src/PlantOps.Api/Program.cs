@@ -15,6 +15,7 @@ using PlantOps.Infrastructure;
 using PlantOps.Infrastructure.Identity;
 using PlantOps.Infrastructure.Persistence;
 using Serilog;
+using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,9 +54,11 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 // Login is limited per client IP to slow down password guessing across many accounts. Identity's lockout
-// (5 failures locks an account for 15 minutes) covers repeated guesses against one account.
+// (5 failures locks an account for 15 minutes) covers repeated guesses against one account; the public demo accounts
+// have it switched off, because their password is published anyway.
 // The readiness check queries the database, so it has one limit shared by every client: a flood of anonymous
-// requests cannot turn into database load (or use up the Azure SQL free tier's monthly compute).
+// requests cannot turn into database load. A limit caps load, not wake-ups: a single request still resumes a paused
+// serverless database, so nothing should poll /health.
 const string HealthRateLimitPolicy = "health";
 builder.Services.AddOptions<RateLimitingSettings>()
     .Bind(builder.Configuration.GetSection(RateLimitingSettings.SectionName))
@@ -103,9 +106,29 @@ builder.Services.AddOpenApi(options => options.AddDocumentTransformer<BearerSecu
 
 var app = builder.Build();
 
+// One-off maintenance commands that run instead of the web server and exit when done. Their passwords come from
+// configuration at run time, never from the repo. A bare word, not --switch, so the command-line configuration
+// provider ignores it.
+switch (args)
+{
+    case ["seed-demo"]:
+        // The deploy pipeline, after the migrations: the public demo accounts (no Admin) and the sample work orders.
+        await app.Services.SeedDemoDataAsync();
+        return;
+    case ["create-admin"]:
+        // The owner, once, from their own machine: the first Admin, which the API can't create by itself.
+        await app.Services.CreateAdminAsync();
+        return;
+}
+
 // Outermost, so the request log records the final status code (e.g. 409) after the exception handler has run,
 // instead of seeing the raw exception and logging every handled error as a 500 with a stack trace.
-app.UseSerilogRequestLogging();
+// App Service probes /health/live every minute; those requests are logged at Verbose, below the minimum level, so
+// 1,440 lines a day don't bury real traffic. Failures are still logged as errors.
+app.UseSerilogRequestLogging(options => options.GetLevel = (httpContext, _, exception) =>
+    exception is not null || httpContext.Response.StatusCode >= StatusCodes.Status500InternalServerError ? LogEventLevel.Error
+    : httpContext.Request.Path.StartsWithSegments("/health/live") ? LogEventLevel.Verbose
+    : LogEventLevel.Information);
 app.UseExceptionHandler();
 // Turns empty 401/403/404/429 responses into ProblemDetails bodies too.
 app.UseStatusCodePages();
@@ -134,8 +157,9 @@ app.MapControllers();
 
 // Health endpoints are anonymous: load balancers and uptime monitors can't sign in. They return only
 // "Healthy"/"Unhealthy" (200/503), never details. Liveness has no dependencies, so the platform's frequent probes
-// never touch the database (which matters for Azure SQL's free tier, which pauses when idle); readiness includes
-// the database for deploy verification and manual checks, and is rate limited.
+// never touch the database (which matters for Azure SQL's free tier, which pauses when idle). Point monitors at
+// /health/live only. Readiness signs in to the database, so each call resumes a paused one; it is for deploy
+// verification and manual checks, and is rate limited.
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
 app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = check => check.Tags.Contains(HealthCheckTags.Ready) })
     .AllowAnonymous()
