@@ -167,7 +167,8 @@ jobs:
     needs: [backend, frontend, docker]
     # Pushes and manual runs on main only, never pull requests. The 'production' environment admits only main, and the
     # Azure federated credential trusts only that environment's subject, so nothing else can get an Azure token.
-    if: github.ref == 'refs/heads/main'
+    # Switched off (skipped) until the repository variable AZURE_DEPLOY is 'true': the last step of infra/README.md.
+    if: github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY == 'true'
     runs-on: ubuntu-24.04 # standard runner: free for public repos (larger runners are always billed)
     timeout-minutes: 30
     environment:
@@ -346,7 +347,7 @@ jobs:
   deploy-web:
     name: Deploy front end
     needs: deploy
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:

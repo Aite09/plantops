@@ -113,8 +113,8 @@ environment. Both images run as non-root users. `docker compose down` stops ever
 
 ### Trying the API in Swagger UI
 
-Demo accounts, all sharing one password: locally your `Seed:DemoUserPassword`; on the public Azure demo, the
-password shown on its login page. The public demo has every account below except Admin.
+Demo accounts, all sharing one password: locally your `Seed:DemoUserPassword`; when deployed to Azure, the
+password shown on the login page. The deployed demo has every account below except Admin.
 
 | Email | Name | Role |
 | --- | --- | --- |
@@ -226,7 +226,7 @@ dotnet reportgenerator -reports:"TestResults/**/*.cobertura*.xml" -targetdir:cov
 ## Continuous integration
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to `main` and every pull request. Three
-check jobs run in parallel; on `main`, two deploy jobs follow:
+check jobs run in parallel; on `main`, two deploy jobs follow once deployment is switched on (see Deployment):
 
 | Job | What it checks |
 | --- | --- |
@@ -243,14 +243,15 @@ and patch only; actions: every release).
 
 ## Deployment
 
-The public demo runs on Azure for Students at $0: the API on App Service F1 (Linux, .NET 10), the Angular build on
-Static Web Apps Free, and Azure SQL's free serverless offer, which pauses rather than bills when the monthly
-allowance runs out. Azure Policy deny rules make paid SKUs impossible to create. There are no database passwords
-(Entra-only SQL, managed identities) and no Azure credentials in GitHub (OIDC). The only secret is the Static Web
-Apps deployment token. CI deploys exactly what it tested; migrations run in the pipeline with their own identity,
-only when a migration or the seed code changed, and the readiness check (`/health`) runs only on those deploys, so a routine deploy
-never wakes the free database. Only `/health/live` is safe to monitor. Infrastructure and the one-time setup are
-in [infra/README.md](infra/README.md).
+PlantOps is built to run on Azure for Students at $0: the API on App Service F1 (Linux, .NET 10), the Angular build on
+Static Web Apps Free, and Azure SQL's free serverless offer, which pauses rather than bills when the monthly allowance
+runs out. The infrastructure is deploy-ready but not deployed: the deploy jobs stay switched off (CI shows them as
+skipped) until the repository variable `AZURE_DEPLOY` is `true`, the last step of the setup. Azure Policy deny rules
+make paid SKUs impossible to create. There are no database passwords (Entra-only SQL, managed identities) and no Azure
+credentials in GitHub (OIDC). The only secret is the Static Web Apps deployment token. CI deploys exactly what it
+tested; migrations run in the pipeline with their own identity, only when a migration or the seed code changed, and
+the readiness check (`/health`) runs only on those deploys, so a routine deploy never wakes the free database. Only
+`/health/live` is safe to monitor. Infrastructure and the one-time setup are in [infra/README.md](infra/README.md).
 
 ## Security model
 

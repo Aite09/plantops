@@ -20,8 +20,10 @@ brief:
 
 Deployments after the setup are automatic: the `deploy` and `deploy-web` jobs in
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) run on every push to `main` once the three CI checks pass.
+They are switched off (skipped) until the repository variable `AZURE_DEPLOY` is `true`, which is the last setup step
+(step 11), so nothing deploys half-configured.
 
-> Run everything below **once**, from the repository root in zsh, on the `phase-6-azure` branch, **before** merging it to main.
+> Run everything below **once**, from the repository root in zsh, **before** step 11 switches the deploy jobs on.
 > Use one terminal session throughout: later steps reuse shell variables (`LOCATION`, `T`, `out`, `R`, ...).
 > Cost: every step is $0. Steps that touch the database wake it once and use part of the monthly free allowance of
 > 100,000 vCore-seconds; nothing is ever billed.
@@ -327,7 +329,14 @@ the jobs' `name:` values, and `integration_id` 15368 is GitHub Actions.
 
 ### Step 11. First deployment and checks ($0)
 
-Merge or fast-forward the `phase-6-azure` branch to `main` and push. Then:
+Switch the Azure deploy jobs on and run the workflow on `main`:
+
+```zsh
+gh variable set AZURE_DEPLOY --repo "$R" --body true
+gh workflow run ci.yml --repo "$R" --ref main
+```
+
+Then:
 
 ```zsh
 gh run watch --repo "$R"   # the first run has no previous deployment, so it migrates and seeds
