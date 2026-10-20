@@ -35,6 +35,10 @@ public static class DependencyInjection
         // Abstracted clock: production uses the system clock, tests can substitute a fake one.
         services.AddSingleton(TimeProvider.System);
 
+        // Readiness check: can the app reach its database? Tagged so the API can expose it separately from liveness.
+        services.AddHealthChecks()
+            .AddDbContextCheck<PlantOpsDbContext>("database", tags: [HealthCheckTags.Ready]);
+
         return services;
     }
 

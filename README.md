@@ -23,14 +23,16 @@ PlantOps/
 │   ├── PlantOps.Application/     CQRS commands/queries, MediatR behaviors, validators. Depends on Domain.
 │   ├── PlantOps.Infrastructure/  EF Core, repositories, read queries, audit interceptor, migrations, seed data.
 │   │   └── Identity/             ASP.NET Core Identity, JWT issuing, user directory (own DbContext, "auth" schema).
-│   └── PlantOps.Api/             Controllers, ProblemDetails error handling, OpenAPI, composition root.
+│   └── PlantOps.Api/             Controllers, ProblemDetails error handling, OpenAPI, composition root, Dockerfile.
 ├── tests/                        Unit, integration and architecture tests (see "Testing" below).
-├── web/                          Angular front end (see "Front end" below).
+├── web/                          Angular front end (see "Front end" below), Dockerfile and nginx config.
+├── .config/dotnet-tools.json     Pinned .NET tools (ReportGenerator).
+├── .github/                      CI workflow and Dependabot config.
 ├── PRODUCT.md                    Who the UI is for and the design principles it follows.
 ├── .node-version                 Node 24 for this repo (read by fnm and by CI).
 ├── Directory.Build.props         Shared compiler settings for every project
 ├── Directory.Packages.props      Central NuGet versions
-├── docker-compose.yml            Local SQL Server
+├── docker-compose.yml            SQL Server, API and web app in containers
 └── global.json                   Pins the .NET SDK
 ```
 
@@ -91,6 +93,23 @@ the EF Core CLI (`dotnet tool install --global dotnet-ef`), and Node 24 for the 
    npm install
    npm start
    ```
+
+### Or run the whole stack in Docker
+
+No .NET SDK or Node needed, only Docker. Fill in all four values in `.env` (`JWT_SIGNING_KEY` from
+`openssl rand -hex 32`, and a `DEMO_USER_PASSWORD` for the demo accounts), then:
+
+```bash
+docker compose up -d --build
+```
+
+Open http://localhost:8081 for the web app. The API is at http://localhost:8080 (Swagger UI at `/swagger`, health
+at `/health`). The API container runs as Development, so it applies migrations and creates the demo accounts with
+`DEMO_USER_PASSWORD`. Both setups use the same database volume, so if you already ran the API from source, the
+demo accounts keep the password you set there (use the same value, or `docker compose down -v` to start from an
+empty database). The web container is nginx serving the production Angular build. It writes `/config.json`
+from its `API_BASE_URL` and `SHOW_DEMO_ACCOUNTS` variables when it starts, so the same image works in any
+environment. Both images run as non-root users. `docker compose down` stops everything and keeps the data.
 
 ### Trying the API in Swagger UI
 
@@ -155,6 +174,9 @@ web/src/app/
   is timed from the login response's `expiresInSeconds` on the device's own clock. The interceptor adds the token
   only to requests for the PlantOps API, and signs the user out on a `401`. An HttpOnly cookie set by a
   backend-for-frontend would protect the token from XSS better; that is the next step if the threat model needs it.
+- **Runtime config**: before bootstrapping, `main.ts` fetches `/config.json` (the API URL and whether to list demo
+  accounts) and provides it through DI. Locally that is `web/public/config.json`; the nginx container writes it from
+  environment variables. One build runs in every environment, with no rebuild per environment.
 - **Guards**: `authGuard`, `roleGuard('Admin')` and `guestGuard` decide navigation. They are convenience only;
   the API enforces every rule, and `availableActions()` mirrors those rules just to hide buttons that would fail.
 - **Every view handles loading, error and empty states**: skeletons while loading, a retry on errors, and empty
@@ -190,15 +212,30 @@ Front-end tests:
 cd web && npm test
 ```
 
-Coverage (coverlet plus ReportGenerator, `dotnet tool install --global dotnet-reportgenerator-globaltool`):
+Coverage (coverlet plus ReportGenerator, pinned in `.config/dotnet-tools.json`; run `dotnet tool restore` once):
 
 ```bash
 dotnet test --results-directory TestResults --coverlet --coverlet-output-format cobertura --coverlet-include "[PlantOps.*]*" --coverlet-exclude-by-file "**/Migrations/*.cs"
 ```
 
 ```bash
-reportgenerator -reports:"TestResults/**/*.cobertura*.xml" -targetdir:coverage-report -reporttypes:"Html;TextSummary"
+dotnet reportgenerator -reports:"TestResults/**/*.cobertura*.xml" -targetdir:coverage-report -reporttypes:"Html;TextSummary"
 ```
+
+## Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to `main` and every pull request, as
+three parallel jobs:
+
+| Job | What it checks |
+| --- | --- |
+| Backend | Release build (warnings are errors), all four test projects including the Testcontainers integration tests, a coverage report in the run summary (HTML as an artifact), a minimum of 80% line coverage, and no known-vulnerable NuGet packages |
+| Frontend | `npm ci`, the Vitest suite, the production build (with its bundle budgets), and `npm audit` on runtime dependencies |
+| Docker images | Both images build, and the web image serves `/config.json` from its environment variables with the security headers |
+
+The workflow has read-only permissions, cancels superseded runs, and pins every action to a commit SHA.
+[Dependabot](.github/dependabot.yml) opens grouped monthly PRs for actions, NuGet and npm (NuGet and npm: minor
+and patch only; actions: every release).
 
 ## Security model
 
@@ -206,8 +243,9 @@ CORS: only the origins in the `Cors:AllowedOrigins` setting may call the API fro
 `http://localhost:4200`), with only the methods and headers the web app uses.
 
 Authentication: `POST /api/auth/login` checks the password with ASP.NET Core Identity and returns a JWT signed with
-HMAC-SHA256, valid for 60 minutes. Every other endpoint requires a valid token (a fallback policy, so new
-endpoints are protected by default). Five wrong passwords lock an account for 15 minutes, and login is
+HMAC-SHA256, valid for 60 minutes. Every other endpoint except the two health checks requires a valid token (a
+fallback policy, so new endpoints are protected by default). The health checks are anonymous for load balancers and
+return only `Healthy` or `Unhealthy`; the one that queries the database has a rate limit shared by all clients. Five wrong passwords lock an account for 15 minutes, and login is
 rate-limited per IP. Wrong email, wrong password and a locked account all return the same `401`, and an unknown
 email still runs a password-hash check, so neither the response nor its timing reveals which accounts exist.
 
@@ -268,5 +306,7 @@ ports, and policies use role names that Entra app roles can match. The move is c
 | POST | `/api/work-orders/{id}/start` | Assigned → InProgress (assigned technician only) |
 | POST | `/api/work-orders/{id}/close` | InProgress → Closed (assigned technician only) |
 | GET | `/api/plant-units` | Plant units with their equipment |
+| GET | `/health/live` | Liveness: the process is up, no dependencies (anonymous; Azure probes this) |
+| GET | `/health` | Readiness: the API can reach the database (anonymous, rate-limited across all clients) |
 
 Work orders are never deleted: they are maintenance history, and Closed is the end of the lifecycle.

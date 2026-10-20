@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: CI only needs to read the code.
+permissions:
+  contents: read
+
+# One run per branch or PR; a new push cancels the run it replaces.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# An explicit "shell: bash" makes GitHub run every step with -eo pipefail, so a failing command piped into tee or jq
+# fails the step instead of being hidden by the last command in the pipe.
+defaults:
+  run:
+    shell: bash
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # Fail the build if total line coverage drops below this.
+  MIN_LINE_COVERAGE: 80
+
+jobs:
+  backend:
+    name: Backend (build, test, coverage)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      # Actions are pinned to full commit SHAs (a tag can be moved; a SHA cannot). Dependabot keeps them current.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: |
+          dotnet restore
+          dotnet tool restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      # Integration tests start SQL Server with Testcontainers; Docker is preinstalled on GitHub's Ubuntu runners.
+      - name: Test with coverage
+        run: >
+          dotnet test --configuration Release --no-build
+          --results-directory TestResults
+          --coverlet --coverlet-output-format cobertura
+          --coverlet-include "[PlantOps.*]*"
+          --coverlet-exclude-by-file "**/Migrations/*.cs"
+
+      - name: Coverage report
+        if: ${{ !cancelled() }}
+        run: |
+          dotnet reportgenerator -reports:"TestResults/**/*.cobertura*.xml" -targetdir:coverage-report \
+            -reporttypes:"Html;MarkdownSummaryGithub;JsonSummary"
+          cat coverage-report/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage-report
+          path: coverage-report
+          retention-days: 14
+
+      - name: Enforce minimum coverage
+        run: |
+          coverage=$(jq '.summary.linecoverage' coverage-report/Summary.json)
+          echo "Line coverage: ${coverage}% (minimum ${MIN_LINE_COVERAGE}%)"
+          jq -e --argjson min "$MIN_LINE_COVERAGE" '.summary.linecoverage >= $min' coverage-report/Summary.json > /dev/null
+
+      - name: Check for vulnerable NuGet packages
+        run: |
+          dotnet list package --vulnerable --include-transitive | tee vulnerable.txt
+          if grep -q "has the following vulnerable packages" vulnerable.txt; then exit 1; fi
+
+  frontend:
+    name: Frontend (test, build, audit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+      - run: npx ng test --watch=false
+      - run: npx ng build --configuration production
+      # Only runtime dependencies ship to users; dev tooling advisories do not fail the build.
+      - run: npm audit --omit=dev --audit-level=high
+
+  docker:
+    name: Docker images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build API image
+        run: docker build --file src/PlantOps.Api/Dockerfile --tag plantops-api:ci .
+
+      - name: Build web image
+        run: docker build --tag plantops-web:ci web
+
+      # The web image writes /config.json from environment variables at start-up; prove that and the headers work.
+      - name: Smoke test web image
+        run: |
+          docker run --detach --name web --publish 8081:8080 \
+            --env API_BASE_URL=https://api.example.test --env SHOW_DEMO_ACCOUNTS=false plantops-web:ci
+          for i in $(seq 1 10); do curl -fsS http://localhost:8081/config.json && break; sleep 1; done
+          curl -fsS http://localhost:8081/config.json | jq -e '.apiBaseUrl == "https://api.example.test" and .showDemoAccounts == false'
+          curl -fsSI http://localhost:8081/ | grep -i "^x-content-type-options: nosniff"
+          docker rm --force web

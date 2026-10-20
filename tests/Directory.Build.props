@@ -7,6 +7,9 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- Test projects run in parallel; prefixing each coverage file with its project name stops two of them writing
+         the same timestamped file name. Only used when coverage is turned on. -->
+    <TestingPlatformCommandLineArguments>$(TestingPlatformCommandLineArguments) --coverlet-file-prefix $(MSBuildProjectName)</TestingPlatformCommandLineArguments>
   </PropertyGroup>
 
   <!-- Runs on Microsoft Testing Platform (opted in via global.json), the .NET 10 test runner. -->

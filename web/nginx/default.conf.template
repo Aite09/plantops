@@ -1,0 +1,39 @@
+# The nginx image runs envsubst on this template at start-up, filling ${API_BASE_URL} and ${SHOW_DEMO_ACCOUNTS}.
+# One image therefore works for any environment: the API address is configuration, not part of the build.
+
+# Only an explicit true/1/yes turns the demo accounts on; anything else (including a typo) means false, so the value
+# written into config.json is always valid JSON. This file is included inside nginx's http block, where map belongs.
+map "${SHOW_DEMO_ACCOUNTS}" $show_demo_accounts {
+    default false;
+    ~*^(true|1|yes)$ true;
+}
+
+server {
+    listen 8080;
+    root /usr/share/nginx/html;
+    # Don't advertise the exact nginx version in headers and error pages.
+    server_tokens off;
+
+    # Runtime configuration the Angular app fetches before it starts.
+    location = /config.json {
+        default_type application/json;
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-store" always;
+        return 200 '{"apiBaseUrl":"${API_BASE_URL}","showDemoAccounts":$show_demo_accounts}';
+    }
+
+    # Hashed bundles never change, so they can be cached for a year. No "always": a 404 for a missing chunk must not
+    # be cached for a year too.
+    location ~* \.(?:js|css|woff2?)$ {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+
+    # Single-page app: unknown paths (e.g. /work-orders/123 on refresh) serve index.html and the Angular router takes over.
+    location / {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-cache" always;
+        try_files $uri $uri/ /index.html;
+    }
+}

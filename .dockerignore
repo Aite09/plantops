@@ -1,0 +1,14 @@
+# Keep the Docker build context small and free of secrets and local build output.
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/.angular/
+**/TestResults/
+coverage-report/
+.git/
+.github/
+.env
+*.user
+tests/
+web/

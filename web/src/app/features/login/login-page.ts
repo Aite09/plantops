@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';
 import { finalize } from 'rxjs';
-import { environment } from '../../../environments/environment';
+import { APP_CONFIG } from '../../core/app-config';
 import { AuthStore } from '../../core/auth/auth-store';
 import { problemMessage, toProblem } from '../../core/problem-details';
 
@@ -40,7 +40,7 @@ export class LoginPage {
 
   protected readonly submitting = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly demoAccounts = environment.showDemoAccounts ? DEMO_ACCOUNTS : [];
+  protected readonly demoAccounts = inject(APP_CONFIG).showDemoAccounts ? DEMO_ACCOUNTS : [];
 
   protected useDemoAccount(email: string): void {
     this.form.patchValue({ email });

@@ -45,7 +45,7 @@
     @if (demoAccounts.length > 0) {
       <aside class="demo" aria-labelledby="demo-title">
         <h2 id="demo-title">Demo accounts</h2>
-        <p class="muted">Development only. The password is your <span class="mono">Seed:DemoUserPassword</span> user-secret.</p>
+        <p class="muted">Development only. The password is your <span class="mono">Seed:DemoUserPassword</span> user-secret (<span class="mono">DEMO_USER_PASSWORD</span> in Docker).</p>
         <ul>
           @for (account of demoAccounts; track account.email) {
             <li>

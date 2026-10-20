@@ -1,5 +1,9 @@
 name: plantops
 
+# The whole stack in containers: `docker compose up --build`, then open http://localhost:8081.
+# For day-to-day development you can also run only SQL Server here (`docker compose up -d sqlserver`) and start the
+# API and Angular from source (see README).
+
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -21,6 +25,41 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: src/PlantOps.Api/Dockerfile
+    container_name: plantops-api
+    # A tiny init process runs as PID 1 in front of dotnet. Without it, if the API crashes at start-up (e.g. a missing
+    # setting), the abort signal is ignored by PID 1 and the container hangs as "running" instead of exiting.
+    init: true
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      # Development here so the container applies migrations and loads the demo accounts and sample work orders.
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__PlantOps: Server=sqlserver,1433;Database=PlantOps;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      # Not required here (":-" instead of ":?") so `docker compose up -d sqlserver` works without them; the API itself
+      # refuses to start if they are missing or too weak.
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-}
+      Seed__DemoUserPassword: ${DEMO_USER_PASSWORD:-}
+      Cors__AllowedOrigins__0: http://localhost:8081
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  web:
+    build:
+      context: web
+    container_name: plantops-web
+    depends_on:
+      - api
+    environment:
+      API_BASE_URL: http://localhost:8080
+      SHOW_DEMO_ACCOUNTS: "true"
+    ports:
+      - "127.0.0.1:8081:8080"
 
 volumes:
   sqlserver-data:

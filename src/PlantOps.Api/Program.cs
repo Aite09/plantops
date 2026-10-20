@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using PlantOps.Api.Authentication;
 using Microsoft.AspNetCore.Cors.Infrastructure;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using PlantOps.Api.Authorization;
 using PlantOps.Api.Configuration;
@@ -53,6 +54,9 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 // Login is limited per client IP to slow down password guessing across many accounts. Identity's lockout
 // (5 failures locks an account for 15 minutes) covers repeated guesses against one account.
+// The readiness check queries the database, so it has one limit shared by every client: a flood of anonymous
+// requests cannot turn into database load (or use up the Azure SQL free tier's monthly compute).
+const string HealthRateLimitPolicy = "health";
 builder.Services.AddOptions<RateLimitingSettings>()
     .Bind(builder.Configuration.GetSection(RateLimitingSettings.SectionName))
     .ValidateDataAnnotations()
@@ -69,6 +73,17 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = settings.LoginPermitLimit,
                 Window = TimeSpan.FromSeconds(settings.LoginWindowSeconds),
+            });
+    });
+    options.AddPolicy(HealthRateLimitPolicy, httpContext =>
+    {
+        var settings = httpContext.RequestServices.GetRequiredService<IOptions<RateLimitingSettings>>().Value;
+        return RateLimitPartition.GetFixedWindowLimiter(
+            HealthRateLimitPolicy,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = settings.HealthPermitLimit,
+                Window = TimeSpan.FromSeconds(settings.HealthWindowSeconds),
             });
     });
 });
@@ -116,5 +131,14 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 app.MapControllers();
+
+// Health endpoints are anonymous: load balancers and uptime monitors can't sign in. They return only
+// "Healthy"/"Unhealthy" (200/503), never details. Liveness has no dependencies, so the platform's frequent probes
+// never touch the database (which matters for Azure SQL's free tier, which pauses when idle); readiness includes
+// the database for deploy verification and manual checks, and is rate limited.
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = check => check.Tags.Contains(HealthCheckTags.Ready) })
+    .AllowAnonymous()
+    .RequireRateLimiting(HealthRateLimitPolicy);
 
 await app.RunAsync();
