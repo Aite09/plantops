@@ -53,12 +53,24 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 // Login is limited per client IP to slow down password guessing across many accounts. Identity's lockout
 // (5 failures locks an account for 15 minutes) covers repeated guesses against one account.
+builder.Services.AddOptions<RateLimitingSettings>()
+    .Bind(builder.Configuration.GetSection(RateLimitingSettings.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy(AuthController.LoginRateLimitPolicy, httpContext => RateLimitPartition.GetFixedWindowLimiter(
-        httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+    options.AddPolicy(AuthController.LoginRateLimitPolicy, httpContext =>
+    {
+        var settings = httpContext.RequestServices.GetRequiredService<IOptions<RateLimitingSettings>>().Value;
+        return RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = settings.LoginPermitLimit,
+                Window = TimeSpan.FromSeconds(settings.LoginWindowSeconds),
+            });
+    });
 });
 
 // CORS locked down: only the configured front-end origins, only the methods and headers the Angular app uses.

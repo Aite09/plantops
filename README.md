@@ -24,6 +24,7 @@ PlantOps/
 │   ├── PlantOps.Infrastructure/  EF Core, repositories, read queries, audit interceptor, migrations, seed data.
 │   │   └── Identity/             ASP.NET Core Identity, JWT issuing, user directory (own DbContext, "auth" schema).
 │   └── PlantOps.Api/             Controllers, ProblemDetails error handling, OpenAPI, composition root.
+├── tests/                        Unit, integration and architecture tests (see "Testing" below).
 ├── web/                          Angular front end (see "Front end" below).
 ├── PRODUCT.md                    Who the UI is for and the design principles it follows.
 ├── .node-version                 Node 24 for this repo (read by fnm and by CI).
@@ -160,6 +161,44 @@ web/src/app/
   states that say what to do next.
 - **Accessibility**: WCAG 2.2 AA target; axe-core reports no violations on any screen. Status and priority are
   never colour alone, focus is always visible, and there is a skip link.
+
+## Testing
+
+| Project | Kind | What it proves |
+| --- | --- | --- |
+| `tests/PlantOps.Domain.UnitTests` | Unit | The `WorkOrder` state machine (every from/to pair), invariants, the Result type |
+| `tests/PlantOps.Application.UnitTests` | Unit | Handlers with mocked ports (Moq) and a fake clock; validators; the validation pipeline behavior |
+| `tests/PlantOps.Api.IntegrationTests` | Integration | The real API over HTTP against a real SQL Server in Docker: auth, policies, lifecycle, audit, concurrency, ProblemDetails, CORS, rate limiting |
+| `tests/PlantOps.ArchitectureTests` | Architecture | The Clean Architecture rules as tests: Domain depends on nothing, Application has no EF Core or ASP.NET Core, handlers are sealed and internal |
+| `web/src/**/*.spec.ts` | Front-end unit | `availableActions`, the JWT interceptor, the guards, ProblemDetails mapping |
+
+Stack: xUnit v3 on Microsoft Testing Platform (opted in via `global.json`), FluentAssertions 7 (the last
+Apache-2.0 line), Moq, `FakeTimeProvider`, and for integration tests `WebApplicationFactory`, Testcontainers and
+Respawn. The integration fixture starts one SQL Server container per run, applies both migration sets, creates one
+user per role, and Respawn clears work orders and audit rows before each test. Tests about timestamps run against a
+second in-memory API with a fake clock, so nothing depends on the machine clock.
+
+Run everything (Docker must be running for the integration tests):
+
+```bash
+dotnet test
+```
+
+Front-end tests:
+
+```bash
+cd web && npm test
+```
+
+Coverage (coverlet plus ReportGenerator, `dotnet tool install --global dotnet-reportgenerator-globaltool`):
+
+```bash
+dotnet test --results-directory TestResults --coverlet --coverlet-output-format cobertura --coverlet-include "[PlantOps.*]*" --coverlet-exclude-by-file "**/Migrations/*.cs"
+```
+
+```bash
+reportgenerator -reports:"TestResults/**/*.cobertura*.xml" -targetdir:coverage-report -reporttypes:"Html;TextSummary"
+```
 
 ## Security model
 

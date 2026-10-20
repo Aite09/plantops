@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PlantOps.Domain\PlantOps.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

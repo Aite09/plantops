@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- References every layer so the rules can inspect each assembly. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PlantOps.Api\PlantOps.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NetArchTest.Rules" />
+  </ItemGroup>
+
+</Project>
