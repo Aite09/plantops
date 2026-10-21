@@ -1,0 +1,76 @@
+// The look shared by the dashboard's two count tables: the same frame and header as the work-order table, numbers
+// right-aligned in tabular figures so columns of counts line up, and zeros quiet so non-zero counts stand out.
+@mixin data-table {
+  .table-wrap {
+    // Contains the absolutely positioned .visually-hidden labels, so they scroll with the table instead of widening
+    // the page at 320px (WCAG 1.4.10 Reflow).
+    position: relative;
+    margin-top: 8px;
+    border: 1px solid var(--po-line);
+    border-radius: 8px;
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--mat-sys-surface);
+  }
+
+  th,
+  td {
+    padding: 0 12px;
+    height: 44px;
+    border-bottom: 1px solid var(--po-line);
+    text-align: left;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+
+  thead th {
+    height: 36px;
+    background: var(--po-panel);
+    color: var(--po-ink-muted);
+    font-weight: 500;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+  }
+
+  tbody tr:last-child > * {
+    border-bottom: 0;
+  }
+
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .zero {
+    color: var(--po-ink-muted);
+  }
+
+  // Count links: the number is the link, padded to a comfortable target (WCAG 2.5.8 asks for 24px).
+  a {
+    display: inline-block;
+    min-width: 24px;
+    padding: 4px 6px;
+    margin-right: -6px;
+    border-radius: 4px;
+    color: var(--mat-sys-primary);
+    font-weight: 500;
+    text-align: right;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  // Phone width, as in the work-order table: tighter cells, so a narrow table fits without scrolling sideways.
+  @media (max-width: 600px) {
+    th,
+    td {
+      padding: 0 8px;
+    }
+  }
+}

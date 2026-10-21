@@ -4,6 +4,7 @@ import { Observable, shareReplay } from 'rxjs';
 import { API_BASE_URL } from '../../core/api-config';
 import {
   AuditEntry,
+  FaultExplanation,
   PagedResult,
   PlantUnit,
   WorkOrderDetails,
@@ -61,6 +62,11 @@ export class WorkOrdersApi {
 
   close(id: string, resolutionNotes: string): Observable<void> {
     return this.#http.post<void>(`${this.#base}/work-orders/${encodeURIComponent(id)}/close`, { resolutionNotes });
+  }
+
+  /** Asks the API's AI model about this fault: slow (seconds), rate-limited per user, and nothing is saved. */
+  explain(id: string): Observable<FaultExplanation> {
+    return this.#http.post<FaultExplanation>(`${this.#base}/work-orders/${encodeURIComponent(id)}/explanation`, null);
   }
 
   plantUnits(): Observable<PlantUnit[]> {

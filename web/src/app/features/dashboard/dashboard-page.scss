@@ -1,0 +1,86 @@
+.summary {
+  margin: 4px 0 0;
+  min-height: 20px;
+}
+
+// A failed refresh: an error, so it gets the error colour (PRODUCT.md), with an icon and words, never colour alone.
+.refresh-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 72ch;
+  margin: 0 0 16px;
+  color: var(--po-critical-ink);
+
+  mat-icon {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    font-size: 20px;
+  }
+}
+
+.content {
+  display: grid;
+  gap: 32px;
+}
+
+.lead {
+  margin: 4px 0 0;
+  max-width: 72ch;
+}
+
+.more {
+  margin: 8px 0 0;
+}
+
+// Two different tables side by side on a wide screen, stacked below 1000px. Not cards: no panel behind them.
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 32px;
+}
+
+.skeleton-table {
+  display: grid;
+  gap: 1px;
+  margin-top: 16px;
+  border: 1px solid var(--po-line);
+  border-radius: 8px;
+  overflow: hidden;
+
+  .skeleton {
+    height: 52px;
+    border-radius: 0;
+  }
+}
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 40px 16px;
+  border: 1px dashed var(--po-line);
+  border-radius: 8px;
+  text-align: center;
+
+  mat-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 32px;
+    color: var(--po-ink-muted);
+  }
+
+  p {
+    margin: 0;
+    max-width: 52ch;
+  }
+}
+
+@media (max-width: 1000px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -2,12 +2,15 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PlantOps.Api.Authorization;
+using PlantOps.Api.Caching;
 using PlantOps.Api.Contracts;
 using PlantOps.Application.Users;
 
 namespace PlantOps.Api.Controllers;
 
 [Route("api/users")]
+// A new technician appears in the dashboard's workload table, so a successful create drops the cached copy.
+[EvictDashboardCache]
 public sealed class UsersController(ISender sender) : ApiControllerBase
 {
     /// <summary>Lists users, optionally filtered by role (e.g. role=Technician for the assign pick list).</summary>

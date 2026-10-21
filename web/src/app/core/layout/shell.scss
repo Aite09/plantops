@@ -150,7 +150,7 @@ main {
     gap: 4px;
   }
 
-  // At 320px an admin's two nav links plus the buttons don't fit; the nav scrolls within itself instead of
+  // At 320px an admin's three nav links plus the buttons don't fit; the nav scrolls within itself instead of
   // widening the page (WCAG 1.4.10 Reflow).
   .nav {
     min-width: 0;

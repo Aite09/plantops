@@ -19,6 +19,9 @@ public abstract class ApiControllerBase : ControllerBase
             ErrorType.Conflict => StatusCodes.Status409Conflict,
             ErrorType.Forbidden => StatusCodes.Status403Forbidden,
             ErrorType.Unauthorized => StatusCodes.Status401Unauthorized,
+            // 503, never 401: the web app signs the user out on any 401, and a failing upstream service is not
+            // the user's fault.
+            ErrorType.Unavailable => StatusCodes.Status503ServiceUnavailable,
             _ => StatusCodes.Status500InternalServerError,
         };
 

@@ -3,8 +3,8 @@ using System.ComponentModel.DataAnnotations;
 namespace PlantOps.Api.Configuration;
 
 /// <summary>
-/// Rate limits from the "RateLimiting" configuration section. Defaults: 10 login attempts per minute per IP, and
-/// 12 readiness checks per minute across all clients.
+/// Rate limits from the "RateLimiting" configuration section. Defaults: 10 login attempts per minute per IP,
+/// 12 readiness checks per minute across all clients, and 5 fault explanations per minute per user.
 /// </summary>
 public sealed class RateLimitingSettings
 {
@@ -21,4 +21,10 @@ public sealed class RateLimitingSettings
 
     [Range(1, 3_600)]
     public int HealthWindowSeconds { get; init; } = 60;
+
+    [Range(1, 10_000)]
+    public int ExplainPermitLimit { get; init; } = 5;
+
+    [Range(1, 3_600)]
+    public int ExplainWindowSeconds { get; init; } = 60;
 }

@@ -1,5 +1,6 @@
 using MediatR;
 using NetArchTest.Rules;
+using PlantOps.Application.Abstractions.Authentication;
 
 namespace PlantOps.ArchitectureTests;
 
@@ -33,6 +34,19 @@ public sealed class RequestHandlerTests
         var result = RequestHandlers()
             .Should().HaveNameEndingWith("Handler")
             .GetResult();
+
+        result.ShouldPass();
+    }
+
+    // GET /api/dashboard is output-cached, and one copy is served to every Supervisor and Admin. That is only safe while
+    // its handler cannot tell who is asking; if it ever needs to, the cache policy must vary by user first.
+    [Fact]
+    public void The_cached_dashboard_handler_does_not_read_the_current_user()
+    {
+        var handler = Types.InAssembly(Layers.Application).That().HaveName("GetDashboardQueryHandler");
+        handler.GetTypes().Should().ContainSingle();
+
+        var result = handler.ShouldNot().HaveDependencyOn(typeof(ICurrentUser).FullName!).GetResult();
 
         result.ShouldPass();
     }

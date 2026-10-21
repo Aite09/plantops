@@ -1,0 +1,42 @@
+@let s = state();
+<section aria-labelledby="explain-title">
+  <h2 id="explain-title">AI troubleshooting suggestions</h2>
+  <p class="muted intro">
+    An AI model suggests safety points, likely causes and first checks from the title and description. Nothing is
+    saved to the work order.
+  </p>
+
+  <!-- Not aria-busy: that would hold back the loading message below until the answer arrives. -->
+  <div class="result" aria-live="polite">
+    @if (s.status === 'loading') {
+      <p class="muted">Generating suggestions. This can take up to a minute.</p>
+      <div class="lines" aria-hidden="true">
+        <span class="skeleton"></span>
+        <span class="skeleton"></span>
+        <span class="skeleton short"></span>
+      </div>
+    } @else if (s.status === 'loaded') {
+      <div class="answer">
+        <p class="caveat">
+          AI-generated and not checked by anyone. Follow site isolation, lockout/tagout and permit-to-work, and the
+          equipment manual, before any check.
+        </p>
+        <p class="text">{{ s.data.text }}</p>
+        <p class="provenance">
+          Suggested by <span class="mono">{{ s.data.model }}</span> at
+          <time [attr.datetime]="s.data.generatedAtUtc">{{ s.data.generatedAtUtc | date: 'd MMM y, HH:mm' }}</time>.
+        </p>
+      </div>
+    }
+  </div>
+
+  @if (s.status === 'error') {
+    <p class="error" role="alert">{{ errorMessage() }}</p>
+  }
+
+  @if (showButton()) {
+    <button mat-stroked-button type="button" [disabled]="loading()" disabledInteractive (click)="request()">
+      {{ buttonLabel() }}
+    </button>
+  }
+</section>

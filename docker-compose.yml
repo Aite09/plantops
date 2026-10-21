@@ -46,6 +46,17 @@ services:
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-}
       Seed__DemoUserPassword: ${DEMO_USER_PASSWORD:-}
       Cors__AllowedOrigins__0: http://localhost:8081
+      # Optional "Explain this fault", off unless AI_ENABLED=true in .env. By default the container calls Ollama on
+      # the host as host.docker.internal; AI_BASE_URL, AI_MODEL and AI_API_KEY in .env point it at another provider.
+      Ai__Enabled: ${AI_ENABLED:-false}
+      Ai__BaseUrl: ${AI_BASE_URL:-http://host.docker.internal:11434/v1/}
+      Ai__Model: ${AI_MODEL:-phi4-mini}
+      Ai__ApiKey: ${AI_API_KEY:-}
+    extra_hosts:
+      # Docker Desktop already provides this name and forwards it to the host's 127.0.0.1, where Ollama listens. On
+      # Docker Engine for Linux this line makes the name resolve (to the bridge gateway), but Ollama must then also
+      # listen there (OLLAMA_HOST), which exposes it beyond this machine unless a firewall blocks the port.
+      - "host.docker.internal:host-gateway"
     ports:
       - "127.0.0.1:8080:8080"
 

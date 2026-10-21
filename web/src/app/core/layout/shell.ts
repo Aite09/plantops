@@ -17,6 +17,7 @@ export class Shell {
   readonly #auth = inject(AuthStore);
 
   protected readonly user = this.#auth.user;
+  protected readonly isManager = computed(() => this.#auth.hasAnyRole(['Supervisor', 'Admin']));
   protected readonly isAdmin = computed(() => this.#auth.hasAnyRole(['Admin']));
   protected readonly roleLabel = computed(() => this.user()?.roles.join(', ') ?? '');
   // Starts with the visible text (name, role), so speech-input users can say what they see (WCAG 2.5.3).

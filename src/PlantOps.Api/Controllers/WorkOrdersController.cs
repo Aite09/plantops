@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PlantOps.Api.Authorization;
+using PlantOps.Api.Caching;
 using PlantOps.Api.Contracts;
 using PlantOps.Application.Common;
 using PlantOps.Application.WorkOrders.Commands;
@@ -12,9 +13,10 @@ namespace PlantOps.Api.Controllers;
 
 /// <summary>
 /// Thin controller: translate HTTP into a command or query, send it through MediatR, translate the Result back.
-/// No business logic lives here.
+/// No business logic lives here. Every successful change evicts the cached dashboard.
 /// </summary>
 [Route("api/work-orders")]
+[EvictDashboardCache]
 public sealed class WorkOrdersController(ISender sender) : ApiControllerBase
 {
     /// <summary>Lists work orders, highest priority and oldest first. activeOnly=true leaves out closed ones.</summary>

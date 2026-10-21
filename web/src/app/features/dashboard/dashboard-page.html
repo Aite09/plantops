@@ -1,0 +1,89 @@
+@let state = view();
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>Dashboard</h1>
+      <!-- Atomic, so when the time or count changes the whole line is read, not just the changed part. -->
+      <p class="muted summary" aria-live="polite" aria-atomic="true">
+        @if (state.status === 'loaded') {
+          {{ state.data.needsAttentionTotal }} {{ state.data.needsAttentionTotal === 1 ? 'needs' : 'need' }} attention
+          · as of
+          <time [attr.datetime]="state.data.generatedAtUtc">{{ state.data.generatedAtUtc | date: 'd MMM y, HH:mm' }}</time>
+          @if (refreshing()) {
+            · refreshing…
+          }
+        } @else if (state.status === 'loading') {
+          Loading…
+        }
+      </p>
+    </div>
+    @if (state.status !== 'loading') {
+      <button mat-stroked-button type="button" [disabled]="refreshing()" disabledInteractive (click)="refresh()">
+        <mat-icon>refresh</mat-icon>
+        {{ refreshLabel() }}
+      </button>
+    }
+  </header>
+
+  @if (state.status === 'loading') {
+    <div class="skeleton-table" aria-hidden="true">
+      @for (row of [1, 2, 3, 4]; track row) {
+        <span class="skeleton"></span>
+      }
+    </div>
+  } @else if (state.status === 'error') {
+    <div class="state" role="alert">
+      <mat-icon aria-hidden="true">cloud_off</mat-icon>
+      <p>{{ errorMessage() }}</p>
+    </div>
+  } @else {
+    @let dashboard = state.data;
+    @if (state.refreshProblem) {
+      <p class="refresh-error" role="alert">
+        <mat-icon aria-hidden="true">cloud_off</mat-icon>
+        <span>
+          Could not refresh: {{ errorMessage() }} Showing the numbers as of
+          {{ dashboard.generatedAtUtc | date: 'd MMM y, HH:mm' }}.
+        </span>
+      </p>
+    }
+    <div class="content" [attr.aria-busy]="refreshing()">
+      <section aria-labelledby="attention-title">
+        <h2 id="attention-title">Needs attention</h2>
+        <p class="muted lead">
+          Critical and High work waiting for approval or assignment, and open work reported more than
+          {{ dashboard.ageingAfterDays }} days ago. Highest priority and oldest first.
+        </p>
+        @if (dashboard.needsAttention.length === 0) {
+          <div class="state">
+            <mat-icon aria-hidden="true">inbox</mat-icon>
+            <p>
+              Nothing needs attention. No Critical or High work is waiting, and no open work is older than
+              {{ dashboard.ageingAfterDays }} days.
+            </p>
+            <a mat-stroked-button routerLink="/work-orders">Open the work-order list</a>
+          </div>
+        } @else {
+          <po-work-order-table [items]="dashboard.needsAttention" [now]="snapshotTime()" />
+          @if (dashboard.needsAttentionTotal > dashboard.needsAttention.length) {
+            <p class="more">
+              Showing {{ dashboard.needsAttention.length }} of {{ dashboard.needsAttentionTotal }}.
+              <a routerLink="/work-orders">See all open work</a>
+            </p>
+          }
+        }
+      </section>
+
+      <div class="columns">
+        <section aria-labelledby="units-title">
+          <h2 id="units-title">Open work by unit</h2>
+          <po-unit-workload-table [units]="dashboard.units" />
+        </section>
+        <section aria-labelledby="technicians-title">
+          <h2 id="technicians-title">Technicians</h2>
+          <po-technician-workload-table [technicians]="dashboard.technicians" />
+        </section>
+      </div>
+    </div>
+  }
+</div>

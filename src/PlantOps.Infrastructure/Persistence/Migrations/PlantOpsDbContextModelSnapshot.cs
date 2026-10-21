@@ -239,6 +239,8 @@ namespace PlantOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("PlantUnitId");
 
+                    b.HasIndex("Status", "PlantUnitId");
+
                     b.ToTable("WorkOrders", (string)null);
                 });
 

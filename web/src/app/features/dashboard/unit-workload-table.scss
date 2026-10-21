@@ -1,0 +1,25 @@
+@use 'data-table';
+
+@include data-table.data-table;
+
+tbody th .name {
+  margin-left: 6px;
+  color: var(--po-ink-muted);
+}
+
+tfoot > tr > * {
+  border-top: 1px solid var(--po-line);
+  border-bottom: 0;
+  font-weight: 500;
+}
+
+.total {
+  border-left: 1px solid var(--po-line);
+}
+
+// Phone width: the unit's name goes, the code stays; the table scrolls inside its frame if it still doesn't fit.
+@media (max-width: 600px) {
+  tbody th .name {
+    display: none;
+  }
+}

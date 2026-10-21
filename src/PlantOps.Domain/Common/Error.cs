@@ -9,6 +9,9 @@ public enum ErrorType
     Conflict,
     Forbidden,
     Unauthorized,
+
+    /// <summary>A service outside PlantOps (such as the AI model) did not answer. Retrying later may work.</summary>
+    Unavailable,
 }
 
 /// <summary>An expected business failure, described by a stable machine-readable code.</summary>
@@ -25,6 +28,8 @@ public record Error(string Code, string Description, ErrorType Type)
     public static Error Forbidden(string code, string description) => new(code, description, ErrorType.Forbidden);
 
     public static Error Unauthorized(string code, string description) => new(code, description, ErrorType.Unauthorized);
+
+    public static Error Unavailable(string code, string description) => new(code, description, ErrorType.Unavailable);
 }
 
 /// <summary>One or more invalid input fields, keyed by field name. Maps to an RFC 7807 validation problem.</summary>

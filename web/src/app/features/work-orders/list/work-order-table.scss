@@ -93,6 +93,24 @@ tr.mat-mdc-row {
   }
 }
 
+// Shown instead of the Age column on phones (below). display: none also hides it from screen readers, so the age is
+// never read twice.
+.ageing-inline {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  color: var(--po-high-ink);
+  font-size: 12px;
+  font-weight: 500;
+
+  mat-icon {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+  }
+}
+
 @media (max-width: 760px) {
   .mat-column-unit,
   .mat-column-assignee {
@@ -100,7 +118,8 @@ tr.mat-mdc-row {
   }
 }
 
-// Phone width: priority, title and status are what matter; the exact age is one tap away on the detail page.
+// Phone width: priority, title and status are what matter; the exact age is one tap away on the detail page, and
+// ageing rows say so under the title.
 @media (max-width: 600px) {
   td.mat-mdc-cell,
   th.mat-mdc-header-cell {
@@ -115,5 +134,9 @@ tr.mat-mdc-row {
 
   .mat-column-age {
     display: none;
+  }
+
+  .ageing-inline {
+    display: flex;
   }
 }

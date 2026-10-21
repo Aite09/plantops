@@ -42,6 +42,12 @@ export const routes: Routes = [
           import('./features/work-orders/form/edit-work-order-page').then((m) => m.EditWorkOrderPage),
       },
       {
+        path: 'dashboard',
+        title: 'Dashboard · PlantOps',
+        canActivate: [roleGuard('Supervisor', 'Admin')],
+        loadComponent: () => import('./features/dashboard/dashboard-page').then((m) => m.DashboardPage),
+      },
+      {
         path: 'admin/users',
         title: 'Users · PlantOps',
         canActivate: [roleGuard('Admin')],

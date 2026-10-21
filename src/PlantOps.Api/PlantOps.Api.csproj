@@ -8,6 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- SharedResponseCachePolicy is internal; its storage rules are unit-tested directly. -->
+    <InternalsVisibleTo Include="PlantOps.Api.IntegrationTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\PlantOps.Application\PlantOps.Application.csproj" />
     <!-- Referenced only so Program.cs (the composition root) can register Infrastructure services. -->
     <ProjectReference Include="..\PlantOps.Infrastructure\PlantOps.Infrastructure.csproj" />

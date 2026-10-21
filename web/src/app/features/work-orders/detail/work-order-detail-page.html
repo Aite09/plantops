@@ -1,8 +1,8 @@
 @let state = view();
 <div class="page">
-  <a class="back" routerLink="/work-orders">
+  <a class="back" [routerLink]="back.link">
     <mat-icon aria-hidden="true">arrow_back</mat-icon>
-    Work orders
+    {{ back.label }}
   </a>
 
   @if (state.status === 'loading') {
@@ -52,6 +52,10 @@
           <h2 id="fault-title">Fault description</h2>
           <p class="prose">{{ wo.description }}</p>
         </section>
+
+        @if (explainEnabled()) {
+          <po-fault-explanation [state]="explanation()" (explain)="explain()" />
+        }
 
         @if (wo.resolutionNotes) {
           <section aria-labelledby="resolution-title">

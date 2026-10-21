@@ -9,6 +9,9 @@
 
   <nav class="nav" aria-label="Main">
     <a routerLink="/work-orders" routerLinkActive="active" ariaCurrentWhenActive="page">Work orders</a>
+    @if (isManager()) {
+      <a routerLink="/dashboard" routerLinkActive="active" ariaCurrentWhenActive="page">Dashboard</a>
+    }
     @if (isAdmin()) {
       <a routerLink="/admin/users" routerLinkActive="active" ariaCurrentWhenActive="page">Users</a>
     }

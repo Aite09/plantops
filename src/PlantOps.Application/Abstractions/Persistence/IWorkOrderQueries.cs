@@ -13,4 +13,11 @@ public interface IWorkOrderQueries
     Task<WorkOrderDetailsDto?> GetDetailsAsync(Guid id, CancellationToken cancellationToken);
 
     Task<PagedResult<WorkOrderSummaryDto>> ListAsync(ListWorkOrdersQuery query, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The dashboard's numbers, counted in SQL: Critical/High work not yet approved or assigned plus open work
+    /// reported before <paramref name="ageingCutoff"/> (first <paramref name="needsAttentionLimit"/> rows, highest
+    /// priority and oldest first), open work per unit and status, and assigned and started work per technician.
+    /// </summary>
+    Task<DashboardData> GetDashboardAsync(DateTimeOffset ageingCutoff, int needsAttentionLimit, CancellationToken cancellationToken);
 }

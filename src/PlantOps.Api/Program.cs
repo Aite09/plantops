@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using PlantOps.Api.Authentication;
@@ -5,6 +6,7 @@ using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using PlantOps.Api.Authorization;
+using PlantOps.Api.Caching;
 using PlantOps.Api.Configuration;
 using PlantOps.Api.Controllers;
 using PlantOps.Api.ErrorHandling;
@@ -33,6 +35,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // Entra ID starts here; the README lists the full set of steps.
 builder.Services.AddIdentityAuthentication(builder.Configuration);
 builder.Services.AddPlantOpsAuthorization();
+builder.Services.AddPlantOpsOutputCache();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 
@@ -87,6 +90,20 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = settings.HealthPermitLimit,
                 Window = TimeSpan.FromSeconds(settings.HealthWindowSeconds),
+            });
+    });
+    // Explaining a fault runs a language model: seconds of CPU on a local one, a rate-limited quota on a hosted one.
+    // The limit is per signed-in user (the "sub" claim), so one person can't use it up for everyone; the endpoint
+    // requires a token, and the limiter runs after authentication.
+    options.AddPolicy(WorkOrderExplanationsController.RateLimitPolicy, httpContext =>
+    {
+        var settings = httpContext.RequestServices.GetRequiredService<IOptions<RateLimitingSettings>>().Value;
+        return RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.User.FindFirstValue("sub") ?? "anonymous",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = settings.ExplainPermitLimit,
+                Window = TimeSpan.FromSeconds(settings.ExplainWindowSeconds),
             });
     });
 });
@@ -153,6 +170,9 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
+// After authorization, so a caller who fails an endpoint's policy is rejected before any cached copy is looked up, and
+// after the rate limiter, so a cache hit still counts against a limit.
+app.UseOutputCache();
 app.MapControllers();
 
 // Health endpoints are anonymous: load balancers and uptime monitors can't sign in. They return only

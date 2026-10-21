@@ -11,6 +11,7 @@ public sealed class ErrorTests
         { Error.Conflict, ErrorType.Conflict },
         { Error.Forbidden, ErrorType.Forbidden },
         { Error.Unauthorized, ErrorType.Unauthorized },
+        { Error.Unavailable, ErrorType.Unavailable },
     };
 
     [Theory]

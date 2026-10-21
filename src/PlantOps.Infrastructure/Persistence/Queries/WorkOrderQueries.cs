@@ -102,4 +102,60 @@ internal sealed class WorkOrderQueries(PlantOpsDbContext db) : IWorkOrderQueries
 
         return new PagedResult<WorkOrderSummaryDto>(items, query.Page, query.PageSize, totalCount);
     }
+
+    public async Task<DashboardData> GetDashboardAsync(DateTimeOffset ageingCutoff, int needsAttentionLimit, CancellationToken cancellationToken)
+    {
+        // Open work that is either Critical or High and not yet approved or assigned, or was reported before the
+        // cutoff. "Not Closed" is a top-level AND, not a test inside one branch of the OR (logically the same: the
+        // High branch only matches Open or Approved). That gives SQL Server a predicate to seek
+        // IX_WorkOrders_Status_PlantUnitId on, past the closed rows, instead of scanning the whole table. The cutoff
+        // is a parameter computed from the injected clock, not GETUTCDATE(), so tests control it.
+        var needsAttention = db.WorkOrders.AsNoTracking().Where(w =>
+            w.Status != WorkOrderStatus.Closed
+            && ((w.Priority >= WorkOrderPriority.High && (w.Status == WorkOrderStatus.Open || w.Status == WorkOrderStatus.Approved))
+                || w.CreatedAtUtc < ageingCutoff));
+
+        var needsAttentionTotal = await needsAttention.CountAsync(cancellationToken);
+        var needsAttentionItems = await (
+                from w in needsAttention
+                join u in db.PlantUnits on w.PlantUnitId equals u.Id
+                join e in db.Equipment on w.EquipmentId equals e.Id
+                // Same order as the work-order list, so the two never disagree about what comes first.
+                orderby w.Priority descending, w.CreatedAtUtc, w.Id
+                select new WorkOrderSummaryDto(
+                    w.Id, w.Title, w.Priority, w.Status, u.Code, e.Tag, w.AssignedToUserId, null, w.CreatedAtUtc))
+            .Take(needsAttentionLimit)
+            .ToListAsync(cancellationToken);
+
+        // One row per plant unit, units with no open work included. Each count is a seek on
+        // IX_WorkOrders_Status_PlantUnitId that never touches the table itself.
+        var units = await db.PlantUnits.AsNoTracking()
+            .OrderBy(u => u.Code)
+            .Select(u => new UnitWorkloadDto(
+                u.Id,
+                u.Code,
+                u.Name,
+                db.WorkOrders.Count(w => w.Status == WorkOrderStatus.Open && w.PlantUnitId == u.Id),
+                db.WorkOrders.Count(w => w.Status == WorkOrderStatus.Approved && w.PlantUnitId == u.Id),
+                db.WorkOrders.Count(w => w.Status == WorkOrderStatus.Assigned && w.PlantUnitId == u.Id),
+                db.WorkOrders.Count(w => w.Status == WorkOrderStatus.InProgress && w.PlantUnitId == u.Id)))
+            .ToListAsync(cancellationToken);
+
+        var technicians = await db.WorkOrders.AsNoTracking()
+            .Where(w => (w.Status == WorkOrderStatus.Assigned || w.Status == WorkOrderStatus.InProgress) && w.AssignedToUserId != null)
+            .GroupBy(w => w.AssignedToUserId)
+            .Select(g => new
+            {
+                UserId = g.Key,
+                Assigned = g.Count(w => w.Status == WorkOrderStatus.Assigned),
+                InProgress = g.Count(w => w.Status == WorkOrderStatus.InProgress),
+            })
+            .ToListAsync(cancellationToken);
+
+        return new DashboardData(
+            needsAttentionItems,
+            needsAttentionTotal,
+            units,
+            technicians.Select(t => new TechnicianWorkCount(t.UserId!.Value, t.Assigned, t.InProgress)).ToList());
+    }
 }

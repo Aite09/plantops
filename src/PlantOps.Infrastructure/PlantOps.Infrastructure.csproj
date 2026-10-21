@@ -5,6 +5,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The AI adapter is internal; its tests construct it directly with a stub HTTP handler. -->
+    <InternalsVisibleTo Include="PlantOps.Api.IntegrationTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- ASP.NET Core Identity's SignInManager, JWT bearer validation and the HTTP-aware options live in the shared framework. -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>

@@ -19,4 +19,17 @@ public sealed class StartupValidationTests(PlantOpsApiFactory factory)
 
         start.Should().Throw<OptionsValidationException>().WithMessage("*unresolved Key Vault reference*");
     }
+
+    [Fact]
+    public void The_API_refuses_to_start_when_AI_is_switched_on_without_a_valid_base_URL()
+    {
+        // Otherwise the mistake would only show up as a 503 the first time someone presses "Explain this fault".
+        using var api = factory.WithWebHostBuilder(builder => builder
+            .UseSetting("Ai:Enabled", "true")
+            .UseSetting("Ai:BaseUrl", "localhost:11434"));
+
+        var start = () => api.CreateClient();
+
+        start.Should().Throw<OptionsValidationException>().WithMessage("*Ai:BaseUrl must be an absolute http or https URL*");
+    }
 }

@@ -1,11 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, linkedSignal, signal } from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { catchError, filter, forkJoin, map, Observable, of, startWith, Subject, switchMap, take, tap } from 'rxjs';
 import { AuthStore } from '../../../core/auth/auth-store';
+import { FeaturesApi } from '../../../core/features-api';
 import { LoadState } from '../../../core/load-state';
 import { problemMessage, toProblem } from '../../../core/problem-details';
 import { PriorityBadge } from '../../../shared/priority-badge';
@@ -14,6 +15,7 @@ import { UsersApi } from '../../users/users-api';
 import { availableActions } from '../work-order-actions';
 import { AuditEntry, WorkOrderDetails } from '../work-order.models';
 import { WorkOrdersApi } from '../work-orders-api';
+import { ExplanationState, FaultExplanationPanel } from './fault-explanation';
 import { WorkOrderActionBar } from './work-order-action-bar';
 import { WorkOrderFacts } from './work-order-facts';
 import { WorkOrderHistory } from './work-order-history';
@@ -36,6 +38,7 @@ const NO_ACTIONS = { edit: false, approve: false, assign: false, start: false, c
     WorkOrderActionBar,
     WorkOrderFacts,
     WorkOrderHistory,
+    FaultExplanationPanel,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './work-order-detail-page.html',
@@ -43,13 +46,23 @@ const NO_ACTIONS = { edit: false, approve: false, assign: false, start: false, c
 })
 export class WorkOrderDetailPage {
   readonly #api = inject(WorkOrdersApi);
+  readonly #destroyRef = inject(DestroyRef);
   readonly #usersApi = inject(UsersApi);
   readonly #auth = inject(AuthStore);
   readonly #snackBar = inject(MatSnackBar);
+  readonly #features = inject(FeaturesApi);
   readonly #reload$ = new Subject<void>();
 
   /** The :id route parameter, bound by the router. */
   readonly id = input.required<string>();
+
+  // Back to where the user came from: the dashboard during triage, otherwise the list. Read once, while the router is
+  // still activating this page, so previousNavigation is the page just left (null on a direct link or a reload).
+  readonly #cameFromDashboard =
+    inject(Router).currentNavigation()?.previousNavigation?.finalUrl?.toString().startsWith('/dashboard') ?? false;
+  protected readonly back = this.#cameFromDashboard
+    ? { link: '/dashboard', label: 'Dashboard' }
+    : { link: '/work-orders', label: 'Work orders' };
 
   // First load shows the skeleton; reloads after an action keep the current page on screen until fresh data arrives.
   protected readonly view = toSignal(
@@ -101,6 +114,21 @@ export class WorkOrderDetailPage {
   /** Which action is running, so its button shows progress and the others wait. */
   protected readonly busy = signal<string | null>(null);
 
+  // The API decides whether "Explain this fault" exists; if it can't be asked, the section simply isn't shown.
+  protected readonly explainEnabled = toSignal(
+    this.#features.get().pipe(
+      map((features) => features.explainFault),
+      catchError(() => of(false)),
+    ),
+    { initialValue: false },
+  );
+
+  /** Back to "not asked yet" whenever the route moves on to another work order. */
+  protected readonly explanation = linkedSignal<string, ExplanationState>({
+    source: this.id,
+    computation: () => ({ status: 'idle' }),
+  });
+
   protected approve(): void {
     this.#run('approve', this.#api.approve(this.id()), 'Work order approved.');
   }
@@ -120,6 +148,20 @@ export class WorkOrderDetailPage {
 
   protected retry(): void {
     this.#reload$.next();
+  }
+
+  protected explain(): void {
+    if (this.explanation().status === 'loading') {
+      return;
+    }
+    const id = this.id();
+    this.explanation.set({ status: 'loading' });
+    // Leaving the page cancels the request, and with it the model's work on an answer nobody would see.
+    this.#api.explain(id).pipe(takeUntilDestroyed(this.#destroyRef)).subscribe({
+      // An answer that arrives after the user has moved on to another work order is dropped.
+      next: (data) => this.id() === id && this.explanation.set({ status: 'loaded', data }),
+      error: (error: unknown) => this.id() === id && this.explanation.set({ status: 'error', problem: toProblem(error) }),
+    });
   }
 
   protected errorMessage(): string {

@@ -7,7 +7,7 @@ export function formatAge(isoTimestamp: string, now: number = Date.now()): strin
   return `${Math.floor(hours / 24)}d`;
 }
 
-/** Open work older than this is flagged as ageing in the list. */
+/** Open work older than this is flagged as ageing. The API's dashboard uses the same rule (GetDashboardQuery.AgeingAfterDays). */
 export const AGEING_DAYS = 7;
 
 export function ageInDays(isoTimestamp: string, now: number = Date.now()): number {

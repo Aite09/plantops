@@ -1,0 +1,66 @@
+:host {
+  display: block;
+}
+
+h2 {
+  margin-bottom: 4px;
+}
+
+.intro {
+  margin: 0 0 12px;
+  max-width: 72ch;
+}
+
+// One neutral panel marks the text as machine-written, unlike the reporter's description above it. No accent colour,
+// no gradient, no sparkle: it is a suggestion, not an alarm (PRODUCT.md: colour means attention).
+.answer {
+  max-width: 72ch;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--po-line);
+  border-radius: 8px;
+  background: var(--po-panel);
+}
+
+// The warning comes before the advice it qualifies, in body text: not muted, and not coloured either (not an alarm).
+.caveat {
+  margin: 0 0 12px;
+  font-weight: 500;
+}
+
+.text {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+
+.provenance {
+  margin: 12px 0 0;
+  color: var(--po-ink-muted);
+  font-size: 13px;
+}
+
+.lines {
+  display: grid;
+  gap: 8px;
+  max-width: 72ch;
+  margin: 8px 0 12px;
+
+  .skeleton {
+    height: 14px;
+  }
+
+  .short {
+    width: 60%;
+  }
+}
+
+.error {
+  margin: 0 0 12px;
+  color: var(--po-critical-ink);
+}
+
+button {
+  min-height: 44px;
+}

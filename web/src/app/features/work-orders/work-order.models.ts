@@ -68,6 +68,13 @@ export interface AuditEntry {
   changes: AuditChange[];
 }
 
+/** Plain-text AI suggestions for a fault, from POST /api/work-orders/{id}/explanation. Never saved. */
+export interface FaultExplanation {
+  text: string;
+  model: string;
+  generatedAtUtc: string;
+}
+
 export interface PagedResult<T> {
   items: T[];
   page: number;

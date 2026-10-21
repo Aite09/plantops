@@ -21,6 +21,12 @@ internal sealed class WorkOrderConfiguration : IEntityTypeConfiguration<WorkOrde
         builder.Property(w => w.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(w => w.Priority);
 
+        // Status leads because every work-order screen filters on it: the list's default view (Status <> 'Closed'),
+        // its ?status= filter, and the dashboard's open-work counts. PlantUnitId second makes the dashboard's
+        // count per unit and status an index-only seek. Filtering by unit alone uses IX_WorkOrders_PlantUnitId,
+        // the index EF Core already creates for that foreign key.
+        builder.HasIndex(w => new { w.Status, w.PlantUnitId });
+
         // Optimistic concurrency: SQL Server bumps rowversion on every update, and EF Core adds it to the
         // UPDATE's WHERE clause. A shadow property keeps this persistence detail out of the domain model.
         builder.Property<byte[]>("RowVersion").IsRowVersion();

@@ -12,6 +12,10 @@
       <td mat-cell *matCellDef="let row" class="title-cell">
         <a class="row-link" [routerLink]="['/work-orders', row.id]">{{ row.title }}</a>
         <span class="tag mono">{{ row.equipmentTag }}</span>
+        <!-- Phone width only, where the Age column is hidden: an ageing row still says why it stands out. -->
+        @if (isAgeing(row)) {
+          <span class="ageing-inline"><mat-icon aria-hidden="true">schedule</mat-icon>Ageing · {{ age(row) }}</span>
+        }
       </td>
     </ng-container>
 

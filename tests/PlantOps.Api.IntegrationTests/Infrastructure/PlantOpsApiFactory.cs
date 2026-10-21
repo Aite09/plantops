@@ -4,9 +4,11 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using PlantOps.Api.Caching;
 using PlantOps.Infrastructure.Identity;
 using PlantOps.Infrastructure.Persistence;
 using Respawn;
@@ -66,13 +68,22 @@ public sealed class PlantOpsApiFactory : WebApplicationFactory<Program>, IAsyncL
         await using var connection = new SqlConnection(ConnectionString);
         await connection.OpenAsync();
         await _respawner!.ResetAsync(connection);
+
+        // The output cache lives in this shared API's memory and would otherwise outlive the rows it was built from.
+        await Services.GetRequiredService<IOutputCacheStore>().EvictByTagAsync(CachePolicies.DashboardTag, CancellationToken.None);
     }
 
     /// <summary>An HttpClient signed in as the given user (tokens are cached for the whole test run).</summary>
-    public async Task<HttpClient> CreateClientAsAsync(TestUser user)
+    public Task<HttpClient> CreateClientAsAsync(TestUser user) => CreateClientAsAsync(this, user);
+
+    /// <summary>
+    /// A client for another in-memory API built from this one with WithWebHostBuilder (different settings or services),
+    /// signed in as the given user. It shares this API's signing key, so the cached tokens are valid there too.
+    /// </summary>
+    public async Task<HttpClient> CreateClientAsAsync(WebApplicationFactory<Program> api, TestUser user)
     {
         var token = _tokens.TryGetValue(user.Email, out var cached) ? cached : await LoginAsync(user);
-        var client = CreateClient();
+        var client = api.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
     }
