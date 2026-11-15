@@ -13,6 +13,26 @@ It is not deployed; `infra/` is deploy-ready Azure Bicep (see "Deployment" below
 Project rule: free/OSS dependencies and free-tier services only. Flag anything that could bill before adding it.
 This is also why FluentAssertions is pinned to 7.x (8.x is commercially licensed).
 
+## Working rules
+
+**Definition of done.** `dotnet build` and `dotnet test` pass, plus `npx ng test --watch=false` and the production
+build when `web/` changed. Every bug fix comes with a test that fails without the fix. Diffs stay small and on task:
+no unrelated edits, renames or reformatting.
+
+**Stop and ask before changing** any of the following. They are security- or data-critical, and tests and README
+explanations depend on their exact behaviour:
+
+- authentication and JWT issuing or validation (`Infrastructure/Identity/`), and the authorization policies
+  (`Api/Authorization/`);
+- rate limiting (`RateLimitingSettings` and the limiter policies in `Program.cs`);
+- EF Core migrations: adding, editing or removing one (never edit a migration that has been applied);
+- the `AuditingInterceptor`;
+- the AI prompt (`FaultExplanationPrompt`).
+
+**Secrets.** Never read or print `.env`, user-secrets (`dotnet user-secrets list`, `~/.microsoft/usersecrets/`) or
+connection strings. `.claude/settings.json` denies reading them; to check that a value is set, test it in the shell
+without echoing it.
+
 ## Setup
 
 - .NET SDK 10.0.402 (pinned in `global.json`, which also opts tests into Microsoft Testing Platform), Node 24

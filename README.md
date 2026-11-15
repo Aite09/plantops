@@ -115,8 +115,10 @@ PlantOps/
 ├── docs/                         Screenshots and the query-plan check script.
 ├── web/                          Angular front end (see "Front end" below), Dockerfile and nginx config.
 ├── .config/dotnet-tools.json     Pinned .NET tools (ReportGenerator).
+├── .claude/settings.json         Claude Code deny rules: never read .env or user-secrets.
 ├── .github/                      CI workflow and Dependabot config.
 ├── infra/                        Azure infrastructure (Bicep), the one-time setup runbook and SQL grants.
+├── CLAUDE.md                     Guidance for Claude Code: commands, architecture, working rules.
 ├── PRODUCT.md                    Who the UI is for and the design principles it follows.
 ├── .node-version                 Node 24 for this repo (read by fnm and by CI).
 ├── Directory.Build.props         Shared compiler settings for every project

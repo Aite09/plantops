@@ -483,3 +483,6 @@ $RECYCLE.BIN/
 
 # Coverage reports (generated)
 coverage-report/
+
+# Claude Code: personal, per-machine settings (the shared .claude/settings.json is committed)
+.claude/settings.local.json
